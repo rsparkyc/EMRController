@@ -57,6 +57,8 @@ namespace EMRController
 
 		private void TESTINGCheckFuelLevels()
 		{
+			// Don't think i really need to do any of this
+			return;
 			if (HighLogic.LoadedSceneIsEditor && EditorLogic.fetch.ship.parts.Count == 1 && EditorLogic.fetch.ship.parts[0] == part) {
 				List<PartResourceDefinition> consumedResources = engineModule.GetConsumedResources();
 				List<Part> parts = (HighLogic.LoadedSceneIsEditor ? EditorLogic.fetch.ship.parts : vessel.parts);
@@ -144,6 +146,20 @@ namespace EMRController
 		{
 			UpdateIspAndThrustDisplay();
 			SetNeededFuel();
+			UpdateAllParts();
+
+		}
+
+		private void UpdateAllParts()
+		{
+			List<Part> parts;
+			if (HighLogic.LoadedSceneIsEditor && EditorLogic.fetch.ship != null)
+				parts = EditorLogic.fetch.ship.parts;
+			else if (HighLogic.LoadedSceneIsFlight && vessel != null)
+				parts = vessel.parts;
+			else parts = new List<Part>();
+			for (int i = parts.Count - 1; i >= 0; --i)
+				parts[i].SendMessage("UpdateUsedBy", SendMessageOptions.DontRequireReceiver);
 		}
 
 		private void UpdateIspAndThrustDisplay()
