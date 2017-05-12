@@ -23,6 +23,10 @@ namespace EMRController
 		[KSPField(isPersistant = false, guiActive = false, guiActiveEditor = true, guiName = "ISP")]
 		public string finalEMRText;
 
+		[KSPField(isPersistant = true, guiName = "Percentage at Final EMR", guiActive = false, guiActiveEditor = false, guiUnits = "%"),
+			UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
+		public float emrSplitPercentage;
+
 		[KSPField]
 		public bool emrEnabled = false;
 
@@ -87,17 +91,29 @@ namespace EMRController
 			if (propellantResources == null) {
 				propellantResources = new PropellantResources(engineModule);
 			}
-			EMRUtils.Log("Oxidizer: ", propellantResources.Oxidizer.Name);
+			//EMRUtils.Log("Oxidizer: ", propellantResources.Oxidizer.Name);
 			foreach (var fuel in propellantResources.Fuels) {
-				EMRUtils.Log("Fuel: ", fuel.Name);
+				//EMRUtils.Log("Fuel: ", fuel.Name);
 			}
 
-			//For now, we'll use the final EMR to test
-			SetNewRatios(propellantResources, finalEMR);
+			SetNewRatios(propellantResources, startingEMR, finalEMR, emrSplitPercentage);
 
 		}
 
-		private void SetNewRatios(PropellantResources propellantResources, float finalEMR)
+		private void SetNewRatios(PropellantResources propellantResources, float startingEMR, float finalEMR, float emrSplitPercentage)
+		{
+			Dictionary<int, float> startRatios = GetRatiosForEMR(propellantResources, startingEMR);
+			Dictionary<int, float> endRatios = GetRatiosForEMR(propellantResources, finalEMR);
+
+			foreach (var prop in engineModule.propellants) {
+				var ratioDiff = endRatios[prop.id] - startRatios[prop.id];
+				EMRUtils.Log("Ratio Diff for ", prop.name, ": ", ratioDiff);
+				prop.ratio = startRatios[prop.id] + ((emrSplitPercentage / 100) * ratioDiff);
+				EMRUtils.Log("New ratio: ", prop.ratio);
+			}
+		}
+
+		Dictionary<int, float> GetRatiosForEMR(PropellantResources propellantResources, float EMR)
 		{
 			// right now, the ratio is a volume ratio, so we need to convert that to a mass ratio
 
@@ -108,7 +124,7 @@ namespace EMRController
 			var fuelMassFlow = propellantResources.Fuels.Sum(fuel => fuel.PropellantMassFlow);
 
 			// oxidizer mass flow will be that times the EMR
-			var oxidizerMassFlow = fuelMassFlow * finalEMR;
+			var oxidizerMassFlow = fuelMassFlow * EMR;
 
 			// dividing that by density should give us the ratios tha we want
 			var oxidierRatio = oxidizerMassFlow / propellantResources.Oxidizer.Density;
@@ -119,21 +135,15 @@ namespace EMRController
 			Dictionary<int, float> ratios = new Dictionary<int, float>();
 			ratios.Add(propellantResources.Oxidizer.Id, oxidierRatio);
 			ratios.Add(propellantResources.Fuels[0].Id, fuelRatio);
-
-			foreach (var prop in engineModule.propellants) {
-				EMRUtils.Log("New Ratio for ", prop.name, ": ", ratios[prop.id]);
-				prop.ratio = ratios[prop.id];
-			}
+			return ratios;
 		}
 
 		private void BindCallbacks()
 		{
-			UI_FloatEdit startFloatEdit = (UI_FloatEdit)Fields["startingEMR"].uiControlEditor;
-			UI_FloatEdit endFloatEdit = (UI_FloatEdit)Fields["finalEMR"].uiControlEditor;
-
-			startFloatEdit.onFieldChanged += UIChanged;
-			endFloatEdit.onFieldChanged += UIChanged;
-
+			string[] editorNames = new string[] { "startingEMR", "finalEMR", "emrSplitPercentage" };
+			foreach (var editorName in editorNames) {
+				Fields[editorName].uiControlEditor.onFieldChanged += UIChanged;
+			}
 			part.OnEditorAttach += PartAttached;
 		}
 
@@ -147,7 +157,6 @@ namespace EMRController
 			UpdateIspAndThrustDisplay();
 			SetNeededFuel();
 			UpdateAllParts();
-
 		}
 
 		private void UpdateAllParts()
@@ -239,6 +248,7 @@ namespace EMRController
 			Fields["finalEMR"].guiActiveEditor = emrEnabled;
 			Fields["startingEMRText"].guiActiveEditor = emrEnabled;
 			Fields["finalEMRText"].guiActiveEditor = emrEnabled;
+			Fields["emrSplitPercentage"].guiActiveEditor = emrEnabled;
 		}
 
 		private void DeserializeNodes()
