@@ -50,7 +50,14 @@ namespace EMRController
 				EMRUtils.Log("ERROR: ", errorMessage);
 				throw new ArgumentException(errorMessage);
 			}
-			Propellant = propellant;
+
+			// We're going to make a clone of the propellant, since we want to leave these "stock" rations alone
+			Propellant = new Propellant() {
+				id = propellant.id,
+				name = propellant.name,
+				ratio = propellant.ratio
+			};
+
 			Resource = resource;
 		}
 	}

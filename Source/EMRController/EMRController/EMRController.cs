@@ -90,8 +90,39 @@ namespace EMRController
 				EMRUtils.Log("Fuel: ", fuel.Name);
 			}
 
+			//For now, we'll use the final EMR to test
+			SetNewRatios(propellantResources, finalEMR);
+
 		}
 
+		private void SetNewRatios(PropellantResources propellantResources, float finalEMR)
+		{
+			// right now, the ratio is a volume ratio, so we need to convert that to a mass ratio
+
+			// finalEMR = oxidizer mass flow rate
+			// 1 = fuel mass flow rate
+
+			// let's sum up all the mass flows for our fuels
+			var fuelMassFlow = propellantResources.Fuels.Sum(fuel => fuel.PropellantMassFlow);
+
+			// oxidizer mass flow will be that times the EMR
+			var oxidizerMassFlow = fuelMassFlow * finalEMR;
+
+			// dividing that by density should give us the ratios tha we want
+			var oxidierRatio = oxidizerMassFlow / propellantResources.Oxidizer.Density;
+
+			//TODO: handle more than one fuel
+			var fuelRatio = fuelMassFlow / propellantResources.Fuels[0].Density;
+
+			Dictionary<int, float> ratios = new Dictionary<int, float>();
+			ratios.Add(propellantResources.Oxidizer.Id, oxidierRatio);
+			ratios.Add(propellantResources.Fuels[0].Id, fuelRatio);
+
+			foreach (var prop in engineModule.propellants) {
+				EMRUtils.Log("New Ratio for ", prop.name, ": ", ratios[prop.id]);
+				prop.ratio = ratios[prop.id];
+			}
+		}
 
 		private void BindCallbacks()
 		{
@@ -190,6 +221,8 @@ namespace EMRController
 			Events["ToggleEMR"].guiName = (emrEnabled ? "Disable" : "Enable") + " EMR Controller";
 			Fields["startingEMR"].guiActiveEditor = emrEnabled;
 			Fields["finalEMR"].guiActiveEditor = emrEnabled;
+			Fields["startingEMRText"].guiActiveEditor = emrEnabled;
+			Fields["finalEMRText"].guiActiveEditor = emrEnabled;
 		}
 
 		private void DeserializeNodes()
