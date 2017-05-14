@@ -27,6 +27,13 @@ namespace EMRController
 			UI_FloatRange(minValue = 0, maxValue = 100, stepIncrement = 1, scene = UI_Scene.Editor)]
 		public float emrSplitPercentage;
 
+		[KSPField(isPersistant = true, guiName = "Boiloff Reserve Percentage", guiActive = false, guiActiveEditor = true, guiUnits = "%"),
+			UI_FloatRange(minValue = -50, maxValue = 50, stepIncrement = 1, scene = UI_Scene.Editor)]
+		public float fuelReservePercentage; 
+
+		[KSPField(isPersistant = false, guiActive = false, guiActiveEditor = true, guiName = "Reserve")]
+		public string fuelReserveText;
+
 		[KSPField]
 		public bool emrEnabled = false;
 
@@ -61,8 +68,8 @@ namespace EMRController
 
 		private void TESTINGCheckFuelLevels()
 		{
-			// Don't think i really need to do any of this
-			return;
+			// Don't think I really need to do any of this
+			/*
 			if (HighLogic.LoadedSceneIsEditor && EditorLogic.fetch.ship.parts.Count == 1 && EditorLogic.fetch.ship.parts[0] == part) {
 				List<PartResourceDefinition> consumedResources = engineModule.GetConsumedResources();
 				List<Part> parts = (HighLogic.LoadedSceneIsEditor ? EditorLogic.fetch.ship.parts : vessel.parts);
@@ -70,7 +77,6 @@ namespace EMRController
 				if (HighLogic.LoadedSceneIsEditor) {
 					PartSet.BuildPartSets(parts, null);
 				}
-
 
 				foreach (PartResourceDefinition resource in consumedResources) {
 					double amount;
@@ -82,6 +88,7 @@ namespace EMRController
 					//EMRUtils.Log("Remaining ", resource.name, ": ", amount);
 				}
 			}
+			*/
 		}
 
 		private PropellantResources propellantResources;
@@ -107,10 +114,19 @@ namespace EMRController
 
 			foreach (var prop in engineModule.propellants) {
 				var ratioDiff = endRatios[prop.id] - startRatios[prop.id];
-				EMRUtils.Log("Ratio Diff for ", prop.name, ": ", ratioDiff);
+				//EMRUtils.Log("Ratio Diff for ", prop.name, ": ", ratioDiff);
 				prop.ratio = startRatios[prop.id] + ((emrSplitPercentage / 100) * ratioDiff);
-				EMRUtils.Log("New ratio: ", prop.ratio);
+				//EMRUtils.Log("New ratio: ", prop.ratio);
+				if (propellantResources.Oxidizer.Id == prop.id && fuelReservePercentage > 0) { 
+					//EMRUtils.Log("Adujusting oxidizer capacity to account for boiloff");
+					prop.ratio = prop.ratio * ((100 - fuelReservePercentage) / 100);
+				}
+				if (propellantResources.Fuels[0].Id == prop.id && fuelReservePercentage < 0) { 
+					//EMRUtils.Log("Adujusting fuel capacity to account for boiloff");
+					prop.ratio = prop.ratio * ((100 + fuelReservePercentage) / 100);
+				}
 			}
+
 		}
 
 		Dictionary<int, float> GetRatiosForEMR(PropellantResources propellantResources, float EMR)
@@ -140,7 +156,7 @@ namespace EMRController
 
 		private void BindCallbacks()
 		{
-			string[] editorNames = new string[] { "startingEMR", "finalEMR", "emrSplitPercentage" };
+			string[] editorNames = new string[] { "startingEMR", "finalEMR", "emrSplitPercentage", "fuelReservePercentage" };
 			foreach (var editorName in editorNames) {
 				Fields[editorName].uiControlEditor.onFieldChanged += UIChanged;
 			}
@@ -175,11 +191,21 @@ namespace EMRController
 		{
 			startingEMRText = BuildIspAndThrustString(GenerateMixtureConfigNodeForRatio(startingEMR));
 			finalEMRText = BuildIspAndThrustString(GenerateMixtureConfigNodeForRatio(finalEMR));
+			fuelReserveText = BuildFuelReserveText(fuelReservePercentage);
 		}
 
 		private string BuildIspAndThrustString(MixtureConfigNode node)
 		{
 			return node.isp + "s   Thrust: " + MathUtils.ToStringSI(node.thrust, 2, 0, "N");
+		}
+
+		private string BuildFuelReserveText(float fuelReservePercentage)
+		{
+			if (fuelReservePercentage == 0) {
+				return "balanced";
+			}
+			string richProp = fuelReservePercentage > 0 ? "fuel" : "oxidizer";
+			return Math.Abs(fuelReservePercentage).ToString() + "% " + richProp;
 		}
 
 		private MixtureConfigNode GenerateMixtureConfigNodeForRatio(float ratio)
