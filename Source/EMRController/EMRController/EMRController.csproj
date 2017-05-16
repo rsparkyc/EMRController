@@ -55,6 +55,7 @@
     <Compile Include="PropellantResource.cs" />
     <Compile Include="PropellantResources.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="FloatCurveTransformer.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

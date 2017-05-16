@@ -197,7 +197,7 @@ namespace EMRController
 
 		private string BuildIspAndThrustString(MixtureConfigNode node)
 		{
-			return node.isp + "s   Thrust: " + MathUtils.ToStringSI(node.thrust, 2, 0, "N");
+			return node.atmosphereCurve.Evaluate(0) + "s   Thrust: " + MathUtils.ToStringSI(node.thrust, 2, 0, "N");
 		}
 
 		private string BuildFuelReserveText(float fuelReservePercentage)
@@ -220,14 +220,14 @@ namespace EMRController
 
 			return new MixtureConfigNode() {
 				ratio = ratio,
-				isp = BuildNewFloatCurve(ratioPercentage, maxNode.isp, minNode.isp),
+				atmosphereCurve = BuildNewFloatCurve(ratioPercentage, maxNode.atmosphereCurve, minNode.atmosphereCurve),
 				thrust = (ratioPercentage * (maxNode.thrust - minNode.thrust)) + minNode.thrust
 			};
 		}
 
-		private int BuildNewFloatCurve(float ratioPercentage, int max, int min)
+		private FloatCurve BuildNewFloatCurve(float ratioPercentage, FloatCurve max, FloatCurve min)
 		{
-			return Mathf.RoundToInt(ratioPercentage * (max - min)) + min;
+			return FloatCurveTransformer.GenerateForPercentage(min, max, ratioPercentage);
 		}
 
 		public override void OnLoad(ConfigNode node)
@@ -291,7 +291,7 @@ namespace EMRController
 				List<MixtureConfigNode> configList =
 					ObjectSerializer.Deserialize<List<MixtureConfigNode>>(mixtureConfigNodesSerialized);
 				foreach (var item in configList) {
-					EMRUtils.Log("Deserialized ratio: ", item.ratio);
+					EMRUtils.Log("Deserialized ratio: ", item.ratio, "(", item.atmosphereCurve.Evaluate(0), "/", item.atmosphereCurve.Evaluate(1), ")");
 					mixtureConfigNodes.Add(item.ratio, item);
 				}
 				EMRUtils.Log("Deserialized ", mixtureConfigNodes.Count, " configs");
