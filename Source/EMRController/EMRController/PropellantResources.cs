@@ -66,5 +66,14 @@ namespace EMRController
 			}
 			EMRUtils.Log("Built PropellantResources with ", Count, " fuels");
 		}
+
+		Dictionary<int, PropellantResource> resourceCache = new Dictionary<int, PropellantResource>();
+		public PropellantResource GetById(int id)
+		{
+			if (!resourceCache.ContainsKey(id)) {
+				resourceCache.Add(id, Find(prop => prop.Id == id));
+			}
+			return resourceCache[id];
+		}
 	}
 }

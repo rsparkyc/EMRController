@@ -113,16 +113,21 @@ namespace EMRController
 			Dictionary<int, float> endRatios = GetRatiosForEMR(propellantResources, finalEMR);
 
 			foreach (var prop in engineModule.propellants) {
-				var ratioDiff = endRatios[prop.id] - startRatios[prop.id];
-				//EMRUtils.Log("Ratio Diff for ", prop.name, ": ", ratioDiff);
-				prop.ratio = startRatios[prop.id] + ((emrSplitPercentage / 100) * ratioDiff);
+				if (endRatios.ContainsKey(prop.id) && startRatios.ContainsKey(prop.id)) {
+					var ratioDiff = endRatios[prop.id] - startRatios[prop.id];
+					//EMRUtils.Log("Ratio Diff for ", prop.name, ": ", ratioDiff);
+					prop.ratio = startRatios[prop.id] + ((emrSplitPercentage / 100) * ratioDiff);
+				}
+				else {
+					prop.ratio = propellantResources.GetById(prop.id).Ratio;
+				}
 				//EMRUtils.Log("New ratio: ", prop.ratio);
 				if (propellantResources.Oxidizer.Id == prop.id && fuelReservePercentage > 0) { 
-					//EMRUtils.Log("Adujusting oxidizer capacity to account for boiloff");
+					//EMRUtils.Log("Adjusting oxidizer capacity to account for boiloff");
 					prop.ratio = prop.ratio * ((100 - fuelReservePercentage) / 100);
 				}
-				if (propellantResources.Fuels[0].Id == prop.id && fuelReservePercentage < 0) { 
-					//EMRUtils.Log("Adujusting fuel capacity to account for boiloff");
+				if (propellantResources.Oxidizer.Id != prop.id && fuelReservePercentage < 0) { 
+					//EMRUtils.Log("Adjusting fuel capacity to account for boiloff");
 					prop.ratio = prop.ratio * ((100 + fuelReservePercentage) / 100);
 				}
 			}
@@ -145,12 +150,8 @@ namespace EMRController
 			// dividing that by density should give us the ratios tha we want
 			var oxidierRatio = oxidizerMassFlow / propellantResources.Oxidizer.Density;
 
-			//TODO: handle more than one fuel
-			var fuelRatio = fuelMassFlow / propellantResources.Fuels[0].Density;
-
 			Dictionary<int, float> ratios = new Dictionary<int, float>();
 			ratios.Add(propellantResources.Oxidizer.Id, oxidierRatio);
-			ratios.Add(propellantResources.Fuels[0].Id, fuelRatio);
 			return ratios;
 		}
 
@@ -219,9 +220,14 @@ namespace EMRController
 
 			return new MixtureConfigNode() {
 				ratio = ratio,
-				isp = Mathf.RoundToInt(ratioPercentage * (maxNode.isp - minNode.isp)) + minNode.isp,
+				isp = BuildNewFloatCurve(ratioPercentage, maxNode.isp, minNode.isp),
 				thrust = (ratioPercentage * (maxNode.thrust - minNode.thrust)) + minNode.thrust
 			};
+		}
+
+		private int BuildNewFloatCurve(float ratioPercentage, int max, int min)
+		{
+			return Mathf.RoundToInt(ratioPercentage * (max - min)) + min;
 		}
 
 		public override void OnLoad(ConfigNode node)
