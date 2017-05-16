@@ -15,17 +15,17 @@ namespace EMRController
 			FloatCurve resultantCurve = new FloatCurve();
 			for (int i = 0; i < min.Curve.length; i++) {
 				Keyframe minKey = min.Curve[i];
-				Keyframe maxKey = min.Curve[i];
+				Keyframe maxKey = max.Curve[i];
 				EMRUtils.Log("Key: ", minKey.time, " ", minKey.value, " ", minKey.inTangent, " ", minKey.outTangent, " ", minKey.tangentMode);
 				AddPointToCurve(resultantCurve, minKey, maxKey, percentage);
 			}
 
-			return min;
+			return resultantCurve;
 		}
 
-		private static void AddPointToCurve(FloatCurve resultantCurve, Keyframe minKey, Keyframe maxKey, float percentage)
+		private static void AddPointToCurve(FloatCurve curve, Keyframe minKey, Keyframe maxKey, float percentage)
 		{
-			resultantCurve.Add(
+			curve.Add(
 				GetPointWithinRange(minKey.time, maxKey.time, percentage),
 				GetPointWithinRange(minKey.value, maxKey.value, percentage),
 				GetPointWithinRange(minKey.inTangent, maxKey.inTangent, percentage),
