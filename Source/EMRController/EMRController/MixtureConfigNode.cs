@@ -8,6 +8,7 @@ namespace EMRController
 	[Serializable]
 	class MixtureConfigNode : IConfigNode
 	{
+		private const char DELIM = '|';
 
 		[Persistent]
 		public FloatCurve atmosphereCurve;
@@ -20,6 +21,27 @@ namespace EMRController
 
 		[Persistent]
 		public float thrust;
+
+		public MixtureConfigNode()
+		{
+
+		}
+
+		public MixtureConfigNode(string serialized)
+		{
+			EMRUtils.Log("Creating MixtureConfigNode from: ", serialized);
+			var parts = serialized.Split(DELIM);
+			ratio = float.Parse(parts[0]);
+			thrust = float.Parse(parts[1]);
+			atmosphereCurve = new FloatCurve();
+			for(int i = 2; i < parts.Length; i += 4) {
+				atmosphereCurve.Add(
+					float.Parse(parts[i]),
+					float.Parse(parts[i + 1]),
+					float.Parse(parts[i + 2]),
+					float.Parse(parts[i + 3]));
+			}
+		}
 
 		public void Load(ConfigNode node)
 		{
@@ -37,5 +59,23 @@ namespace EMRController
 		{
 			ConfigNode.CreateConfigFromObject(this, node);
 		}
+
+		public override string ToString()
+		{
+			StringBuilder sBuilder = StringBuilderCache.Acquire();
+			sBuilder.Append(ratio).Append(DELIM).Append(thrust).Append(DELIM);
+			if (atmosphereCurve != null) {
+				foreach (var key in atmosphereCurve.Curve.keys){
+					sBuilder.Append(key.time).Append(DELIM);
+					sBuilder.Append(key.value).Append(DELIM);
+					sBuilder.Append(key.inTangent).Append(DELIM);
+					sBuilder.Append(key.outTangent).Append(DELIM);
+				}
+			}
+			string resultString = sBuilder.ToStringAndRelease().TrimEnd(DELIM);
+			EMRUtils.Log("Serialized: ", resultString);
+			return resultString;
+		}
+		
 	}
 }

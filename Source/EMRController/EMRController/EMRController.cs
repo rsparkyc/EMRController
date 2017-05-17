@@ -44,7 +44,8 @@ namespace EMRController
 			SetActionsAndGui();
 		}
 
-		private static ConfigNode[] mixtureConfigNodesSerialized;
+		[SerializeField]
+		public byte[] mixtureConfigNodesSerialized;
 
 		private Dictionary<float, MixtureConfigNode> mixtureConfigNodes;
 
@@ -202,14 +203,15 @@ namespace EMRController
 		private void LoadMixtureConfigNodes(ConfigNode node)
 		{
 			mixtureConfigNodes = new Dictionary<float, MixtureConfigNode>();
-			mixtureConfigNodesSerialized = node.GetNodes("MIXTURE");
-			foreach (ConfigNode tNode in mixtureConfigNodesSerialized) {
+			foreach (ConfigNode tNode in node.GetNodes("MIXTURE")) {
 				MixtureConfigNode configNode = new MixtureConfigNode();
 				configNode.Load(tNode);
 				mixtureConfigNodes.Add(configNode.ratio, configNode);
 				EMRUtils.Log("Loaded ratio: " + configNode.ratio);
 			}
 
+			List<String> configList = mixtureConfigNodes.Values.Select(item => item.ToString()).ToList();
+			mixtureConfigNodesSerialized = ObjectSerializer.Serialize(configList);
 			EMRUtils.Log("Serialized ratios");
 		}
 
@@ -250,11 +252,12 @@ namespace EMRController
 			if (mixtureConfigNodes == null && mixtureConfigNodesSerialized != null) {
 				EMRUtils.Log("ConfigNode Deserialization Needed");
 				mixtureConfigNodes = new Dictionary<float, MixtureConfigNode>();
-				foreach (var node in mixtureConfigNodesSerialized) {
-					MixtureConfigNode configNode = new MixtureConfigNode();
-					configNode.Load(node);
-					EMRUtils.Log("Deserialized ratio: ", configNode.ratio, " (", configNode.atmosphereCurve.Evaluate(0), "/", configNode.atmosphereCurve.Evaluate(1), ")");
-					mixtureConfigNodes.Add(configNode.ratio, configNode);
+				List<string> deserialized = 
+					ObjectSerializer.Deserialize<List<string>>(mixtureConfigNodesSerialized);
+				foreach (var serializedItem in deserialized) {
+					MixtureConfigNode node = new MixtureConfigNode(serializedItem);
+					EMRUtils.Log("Deserialized ratio: ", node.ratio, "(", node.atmosphereCurve.Evaluate(0), "/", node.atmosphereCurve.Evaluate(1), ")");
+					mixtureConfigNodes.Add(node.ratio, node);
 				}
 				EMRUtils.Log("Deserialized ", mixtureConfigNodes.Count, " configs");
 
