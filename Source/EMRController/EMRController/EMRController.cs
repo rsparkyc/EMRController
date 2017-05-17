@@ -34,8 +34,8 @@ namespace EMRController
 		[KSPField(isPersistant = false, guiActive = false, guiActiveEditor = true, guiName = "Reserve")]
 		public string fuelReserveText;
 
-		[KSPField]
-		public bool emrEnabled = false;
+		[KSPField(isPersistant = true)]
+		public bool emrEnabled;
 
 		[KSPEvent(guiActive = true, guiActiveEditor = true)]
 		public void ToggleEMR()
@@ -256,7 +256,7 @@ namespace EMRController
 					ObjectSerializer.Deserialize<List<string>>(mixtureConfigNodesSerialized);
 				foreach (var serializedItem in deserialized) {
 					MixtureConfigNode node = new MixtureConfigNode(serializedItem);
-					EMRUtils.Log("Deserialized ratio: ", node.ratio, "(", node.atmosphereCurve.Evaluate(0), "/", node.atmosphereCurve.Evaluate(1), ")");
+					EMRUtils.Log("Deserialized ratio: ", node.ratio, " (", node.atmosphereCurve.Evaluate(0), "/", node.atmosphereCurve.Evaluate(1), ")");
 					mixtureConfigNodes.Add(node.ratio, node);
 				}
 				EMRUtils.Log("Deserialized ", mixtureConfigNodes.Count, " configs");
