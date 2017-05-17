@@ -230,9 +230,12 @@ namespace EMRController
 			finalFloatEdit.minValue = minNode.ratio;
 			finalFloatEdit.maxValue = maxNode.ratio;
 
-			//TODO: add checking here so we don't overwrite saved values
-			//startingEMR = maxNode.ratio;
-			//finalEMR = minNode.ratio;
+			if (startingEMR < minNode.ratio || startingEMR > maxNode.ratio) {
+				startingEMR = maxNode.ratio;
+			}
+			if (finalEMR < minNode.ratio || finalEMR > maxNode.ratio) {
+				finalEMR = minNode.ratio;
+			}
 		}
 
 		private void SetActionsAndGui()
