@@ -6,11 +6,11 @@ using System.Text;
 namespace EMRController
 {
 	[Serializable]
-	class MixtureConfigNode:IConfigNode
+	class MixtureConfigNode : IConfigNode
 	{
 
 		[Persistent]
-		public int isp;
+		public FloatCurve atmosphereCurve;
 
 		[Persistent]
 		public float ratio; // This is the Oxidizer:Fuel ratio (where the Fuel part is always 1) by mass
@@ -24,9 +24,13 @@ namespace EMRController
 		public void Load(ConfigNode node)
 		{
 			ConfigNode.LoadObjectFromConfig(this, node);
-			isp = int.Parse(node.GetValue("isp"));
 			ratio = float.Parse(node.GetValue("ratio"));
 			thrust = float.Parse(node.GetValue("thrust"));
+			atmosphereCurve = new FloatCurve();
+			ConfigNode atmosCurveNode = node.GetNode("atmosphereCurve");
+			if (atmosCurveNode != null) {
+				atmosphereCurve.Load(atmosCurveNode);
+			}
 		}
 
 		public void Save(ConfigNode node)
