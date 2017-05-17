@@ -65,45 +65,14 @@ namespace EMRController
 			base.OnStart(state);
 		}
 
-		private void TESTINGCheckFuelLevels()
-		{
-			// Don't think I really need to do any of this
-			/*
-			if (HighLogic.LoadedSceneIsEditor && EditorLogic.fetch.ship.parts.Count == 1 && EditorLogic.fetch.ship.parts[0] == part) {
-				List<PartResourceDefinition> consumedResources = engineModule.GetConsumedResources();
-				List<Part> parts = (HighLogic.LoadedSceneIsEditor ? EditorLogic.fetch.ship.parts : vessel.parts);
-
-				if (HighLogic.LoadedSceneIsEditor) {
-					PartSet.BuildPartSets(parts, null);
-				}
-
-				foreach (PartResourceDefinition resource in consumedResources) {
-					double amount;
-					double maxAmount;
-
-
-					//EMRUtils.Log("Looking up Resource: ", resource.name);
-					part.GetConnectedResourceTotals(resource.id, out amount, out maxAmount);
-					//EMRUtils.Log("Remaining ", resource.name, ": ", amount);
-				}
-			}
-			*/
-		}
-
 		private PropellantResources propellantResources;
 		private void SetNeededFuel()
 		{
-
 			if (propellantResources == null) {
 				propellantResources = new PropellantResources(engineModule);
 			}
-			//EMRUtils.Log("Oxidizer: ", propellantResources.Oxidizer.Name);
-			foreach (var fuel in propellantResources.Fuels) {
-				//EMRUtils.Log("Fuel: ", fuel.Name);
-			}
 
 			SetNewRatios(propellantResources, startingEMR, finalEMR, emrSplitPercentage);
-
 		}
 
 		private void SetNewRatios(PropellantResources propellantResources, float startingEMR, float finalEMR, float emrSplitPercentage)
@@ -137,7 +106,7 @@ namespace EMRController
 		{
 			// right now, the ratio is a volume ratio, so we need to convert that to a mass ratio
 
-			// finalEMR = oxidizer mass flow rate
+			// EMR = oxidizer mass flow rate
 			// 1 = fuel mass flow rate
 
 			// let's sum up all the mass flows for our fuels
@@ -160,12 +129,6 @@ namespace EMRController
 			foreach (var editorName in editorNames) {
 				Fields[editorName].uiControlEditor.onFieldChanged += UIChanged;
 			}
-			part.OnEditorAttach += PartAttached;
-		}
-
-		private void PartAttached()
-		{
-			//EMRUtils.Log("I'm attached!");
 		}
 
 		private void UIChanged(BaseField baseField, object obj)
@@ -219,14 +182,9 @@ namespace EMRController
 
 			return new MixtureConfigNode() {
 				ratio = ratio,
-				atmosphereCurve = BuildNewFloatCurve(ratioPercentage, maxNode.atmosphereCurve, minNode.atmosphereCurve),
+				atmosphereCurve = FloatCurveTransformer.GenerateForPercentage(minNode.atmosphereCurve, maxNode.atmosphereCurve, ratioPercentage),
 				thrust = (ratioPercentage * (maxNode.thrust - minNode.thrust)) + minNode.thrust
 			};
-		}
-
-		private FloatCurve BuildNewFloatCurve(float ratioPercentage, FloatCurve max, FloatCurve min)
-		{
-			return FloatCurveTransformer.GenerateForPercentage(min, max, ratioPercentage);
 		}
 
 		public override void OnLoad(ConfigNode node)
@@ -269,6 +227,7 @@ namespace EMRController
 			finalFloatEdit.maxValue = maxNode.ratio;
 
 			startingEMR = maxNode.ratio;
+			finalEMR = minNode.ratio;
 		}
 
 		private void SetActionsAndGui()
@@ -289,7 +248,7 @@ namespace EMRController
 				foreach (var node in mixtureConfigNodesSerialized) {
 					MixtureConfigNode configNode = new MixtureConfigNode();
 					configNode.Load(node);
-					EMRUtils.Log("Deserialized ratio: ", configNode.ratio, "(", configNode.atmosphereCurve.Evaluate(0), "/", configNode.atmosphereCurve.Evaluate(1), ")");
+					EMRUtils.Log("Deserialized ratio: ", configNode.ratio, " (", configNode.atmosphereCurve.Evaluate(0), "/", configNode.atmosphereCurve.Evaluate(1), ")");
 					mixtureConfigNodes.Add(configNode.ratio, configNode);
 				}
 				EMRUtils.Log("Deserialized ", mixtureConfigNodes.Count, " configs");
@@ -298,12 +257,6 @@ namespace EMRController
 				SetActionsAndGui();
 			}
 		}
-
-		public void FixedUpdate()
-		{
-			TESTINGCheckFuelLevels();
-		}
-
 
 	}
 

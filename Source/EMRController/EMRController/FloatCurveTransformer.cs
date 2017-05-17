@@ -10,13 +10,13 @@ namespace EMRController
 	{
 		public static FloatCurve GenerateForPercentage(FloatCurve min, FloatCurve max, float percentage)
 		{
-			EMRUtils.Log("Evaluating Float Curve");
-			EMRUtils.Log("Float Curve has ", min.Curve.length, " keys");
+			//EMRUtils.Log("Evaluating Float Curve");
+			//EMRUtils.Log("Float Curve has ", min.Curve.length, " keys");
 			FloatCurve resultantCurve = new FloatCurve();
 			for (int i = 0; i < min.Curve.length; i++) {
 				Keyframe minKey = min.Curve[i];
 				Keyframe maxKey = max.Curve[i];
-				EMRUtils.Log("Key: ", minKey.time, " ", minKey.value, " ", minKey.inTangent, " ", minKey.outTangent, " ", minKey.tangentMode);
+				//EMRUtils.Log("Key: ", minKey.time, " ", minKey.value, " ", minKey.inTangent, " ", minKey.outTangent, " ", minKey.tangentMode);
 				AddPointToCurve(resultantCurve, minKey, maxKey, percentage);
 			}
 
