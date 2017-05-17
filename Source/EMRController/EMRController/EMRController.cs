@@ -9,6 +9,60 @@ namespace EMRController
 {
 	public class EMRController : PartModule
 	{
+
+		#region In Flight 
+		[KSPField]
+		public bool emrInClosedLoop = false;
+
+		[KSPEvent(guiActive = true, guiActiveEditor = false)]
+		public void ChangeEMRMode()
+		{
+			emrInClosedLoop = !emrInClosedLoop;
+			UpdateInFlightEMRParams();
+		}
+
+		[KSPField(isPersistant = true, guiName = "Current EMR", guiActiveEditor = false, guiUnits = ":1"),
+			UI_FloatEdit(incrementSmall = 0.1f, incrementLarge = 1.0f, incrementSlide = 0.01f, sigFigs = 2, unit = ":1", scene = UI_Scene.Flight)]
+		public float currentEMR;
+
+		[KSPField(isPersistant = false, guiActive = true, guiActiveEditor = false, guiName = "EMR Ratio")]
+		public string closedLoopEMRText;
+
+		[KSPField(isPersistant = false, guiActive = true, guiActiveEditor = false, guiName = "ISP")]
+		public string currentEMRText;
+
+		[KSPField(isPersistant = false, guiActive = true, guiActiveEditor = false, guiName = "Reserve")]
+		public string currentReserveText;
+
+		private void UpdateInFlightEMRParams()
+		{
+			Fields["currentEMR"].guiActive = !emrInClosedLoop;
+			Fields["closedLoopEMRText"].guiActive = emrInClosedLoop;
+
+			UI_FloatEdit currentEMREditor = (UI_FloatEdit)Fields["currentEMR"].uiControlEditor;
+			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
+			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
+			currentEMREditor.minValue = minNode.ratio;
+			currentEMREditor.maxValue = maxNode.ratio;
+		}
+
+		private void BindInFlightCallbacks()
+		{
+			string[] editorNames = new string[] { "currentEMR" };
+			foreach (var editorName in editorNames) {
+				Fields[editorName].uiControlEditor.onFieldChanged += InFlightUIChanged;
+			}
+		}
+
+		private void InFlightUIChanged(BaseField baseField, object obj)
+		{
+			//UpdateIspAndThrustDisplay();
+			//SetNeededFuel();
+			//UpdateAllParts();
+		}
+		#endregion
+
+		#region Editor 
 		[KSPField(isPersistant = true, guiName = "Starting EMR", guiActive = false, guiActiveEditor = false, guiUnits = ":1"),
 			UI_FloatEdit(incrementSmall = 0.1f, incrementLarge = 1.0f, incrementSlide = 0.01f, sigFigs = 2, unit = ":1")]
 		public float startingEMR;
@@ -53,6 +107,12 @@ namespace EMRController
 		public override void OnStart(StartState state)
 		{
 			EMRUtils.Log("OnStart called");
+
+			if (HighLogic.LoadedSceneIsFlight) {
+				BindInFlightCallbacks();
+				UpdateInFlightEMRParams();
+			}
+
 			BindCallbacks();
 
 			DeserializeNodes();
@@ -268,6 +328,7 @@ namespace EMRController
 				SetActionsAndGui();
 			}
 		}
+		#endregion
 
 	}
 
