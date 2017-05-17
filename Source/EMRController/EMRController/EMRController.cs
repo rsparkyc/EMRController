@@ -29,7 +29,7 @@ namespace EMRController
 
 		[KSPField(isPersistant = true, guiName = "Boiloff Reserve Percentage", guiActive = false, guiActiveEditor = true, guiUnits = "%"),
 			UI_FloatRange(minValue = -50, maxValue = 50, stepIncrement = 1, scene = UI_Scene.Editor)]
-		public float fuelReservePercentage; 
+		public float fuelReservePercentage;
 
 		[KSPField(isPersistant = false, guiActive = false, guiActiveEditor = true, guiName = "Reserve")]
 		public string fuelReserveText;
@@ -55,6 +55,7 @@ namespace EMRController
 			BindCallbacks();
 
 			DeserializeNodes();
+			UpdateIspAndThrustDisplay();
 
 			if (engineModule == null) {
 				engineModule = part.FindModuleImplementing<ModuleEngines>();
@@ -90,11 +91,11 @@ namespace EMRController
 					prop.ratio = propellantResources.GetById(prop.id).Ratio;
 				}
 				//EMRUtils.Log("New ratio: ", prop.ratio);
-				if (propellantResources.Oxidizer.Id == prop.id && fuelReservePercentage > 0) { 
+				if (propellantResources.Oxidizer.Id == prop.id && fuelReservePercentage > 0) {
 					//EMRUtils.Log("Adjusting oxidizer capacity to account for boiloff");
 					prop.ratio = prop.ratio * ((100 - fuelReservePercentage) / 100);
 				}
-				if (propellantResources.Oxidizer.Id != prop.id && fuelReservePercentage < 0) { 
+				if (propellantResources.Oxidizer.Id != prop.id && fuelReservePercentage < 0) {
 					//EMRUtils.Log("Adjusting fuel capacity to account for boiloff");
 					prop.ratio = prop.ratio * ((100 + fuelReservePercentage) / 100);
 				}
@@ -200,7 +201,7 @@ namespace EMRController
 		private void LoadMixtureConfigNodes(ConfigNode node)
 		{
 			mixtureConfigNodes = new Dictionary<float, MixtureConfigNode>();
-			mixtureConfigNodesSerialized = node.GetNodes("MIXTURE"); 
+			mixtureConfigNodesSerialized = node.GetNodes("MIXTURE");
 			foreach (ConfigNode tNode in mixtureConfigNodesSerialized) {
 				MixtureConfigNode configNode = new MixtureConfigNode();
 				configNode.Load(tNode);
@@ -233,11 +234,13 @@ namespace EMRController
 		private void SetActionsAndGui()
 		{
 			Events["ToggleEMR"].guiName = (emrEnabled ? "Disable" : "Enable") + " EMR Controller";
-			Fields["startingEMR"].guiActiveEditor = emrEnabled;
-			Fields["finalEMR"].guiActiveEditor = emrEnabled;
-			Fields["startingEMRText"].guiActiveEditor = emrEnabled;
-			Fields["finalEMRText"].guiActiveEditor = emrEnabled;
-			Fields["emrSplitPercentage"].guiActiveEditor = emrEnabled;
+			string[] fieldsToShow = new string[] {
+				"startingEMR", "finalEMR", "startingEMRText", "finalEMRText",
+				"emrSplitPercentage", "fuelReservePercentage", "fuelReserveText"
+			};
+			foreach (string field in fieldsToShow) {
+				Fields[field].guiActiveEditor = emrEnabled;
+			}
 		}
 
 		private void DeserializeNodes()
