@@ -130,6 +130,7 @@ namespace EMRController
 			foreach (var editorName in editorNames) {
 				Fields[editorName].uiControlEditor.onFieldChanged += UIChanged;
 			}
+			EMRUtils.Log("Bound Callbacks");
 		}
 
 		private void UIChanged(BaseField baseField, object obj)
@@ -227,8 +228,9 @@ namespace EMRController
 			finalFloatEdit.minValue = minNode.ratio;
 			finalFloatEdit.maxValue = maxNode.ratio;
 
-			startingEMR = maxNode.ratio;
-			finalEMR = minNode.ratio;
+			//TODO: add checking here so we don't overwrite saved values
+			//startingEMR = maxNode.ratio;
+			//finalEMR = minNode.ratio;
 		}
 
 		private void SetActionsAndGui()
