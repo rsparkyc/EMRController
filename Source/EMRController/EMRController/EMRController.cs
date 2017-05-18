@@ -125,10 +125,11 @@ namespace EMRController
 			MixtureConfigNode current = GenerateMixtureConfigNodeForRatio(currentEMR);
 			engineModule.maxThrust = current.thrust;
 			EMRUtils.Log("Setting max thrust to ", current.thrust);
-
+			EMRUtils.Log("Fuel flow set to ", engineModule.maxFuelFlow);
 			FloatCurve newCurve = FloatCurveTransformer.GenerateForPercentage(minNode.atmosphereCurve, maxNode.atmosphereCurve, ratioPercentage);
 			engineModule.atmosphereCurve = newCurve;
 
+			engineModule.maxFuelFlow = current.thrust / (newCurve.Evaluate(0.0f) * engineModule.g);
 		}
 
 		private void UpdateEnginPropUsage()
