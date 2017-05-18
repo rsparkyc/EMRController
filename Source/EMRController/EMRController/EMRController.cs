@@ -10,9 +10,43 @@ namespace EMRController
 	public class EMRController : PartModule
 	{
 
-		#region In Flight 
+		#region startup
+
+		[SerializeField]
+		public byte[] mixtureConfigNodesSerialized;
+
+		private Dictionary<float, MixtureConfigNode> mixtureConfigNodes;
+
+		public override void OnLoad(ConfigNode node)
+		{
+			EMRUtils.Log("OnLoad called");
+			if (GameSceneFilter.AnyInitializing.IsLoaded()) {
+				EMRUtils.Log("Loading");
+				LoadMixtureConfigNodes(node);
+				EMRUtils.Log("Loaded");
+			}
+			base.OnLoad(node);
+		}
+
+		private void LoadMixtureConfigNodes(ConfigNode node)
+		{
+			mixtureConfigNodes = new Dictionary<float, MixtureConfigNode>();
+			foreach (ConfigNode tNode in node.GetNodes("MIXTURE")) {
+				MixtureConfigNode configNode = new MixtureConfigNode();
+				configNode.Load(tNode);
+				mixtureConfigNodes.Add(configNode.ratio, configNode);
+				EMRUtils.Log("Loaded ratio: " + configNode.ratio);
+			}
+
+			List<String> configList = mixtureConfigNodes.Values.Select(item => item.ToString()).ToList();
+			mixtureConfigNodesSerialized = ObjectSerializer.Serialize(configList);
+			EMRUtils.Log("Serialized ratios");
+		}
+		#endregion
+
+		#region In Flight Controls
 		[KSPField]
-		public bool emrInClosedLoop = false;
+		public bool emrInClosedLoop;
 
 		[KSPEvent(guiActive = true, guiActiveEditor = false)]
 		public void ChangeEMRMode()
@@ -33,6 +67,10 @@ namespace EMRController
 
 		[KSPField(isPersistant = false, guiActive = true, guiActiveEditor = false, guiName = "Reserve")]
 		public string currentReserveText;
+
+		#endregion
+
+		#region In Flight Functions
 
 		private void UpdateInFlightEMRParams()
 		{
@@ -66,7 +104,7 @@ namespace EMRController
 		}
 		#endregion
 
-		#region Editor 
+		#region Editor Controls
 		[KSPField(isPersistant = true, guiName = "Starting EMR", guiActive = false, guiActiveEditor = false, guiUnits = ":1"),
 			UI_FloatEdit(incrementSmall = 0.1f, incrementLarge = 1.0f, incrementSlide = 0.01f, sigFigs = 2, unit = ":1")]
 		public float startingEMR;
@@ -102,10 +140,10 @@ namespace EMRController
 			SetActionsAndGui();
 		}
 
-		[SerializeField]
-		public byte[] mixtureConfigNodesSerialized;
+		#endregion
 
-		private Dictionary<float, MixtureConfigNode> mixtureConfigNodes;
+		#region Editor Functions
+
 
 		ModuleEngines engineModule = null;
 		public override void OnStart(StartState state)
@@ -255,30 +293,6 @@ namespace EMRController
 			};
 		}
 
-		public override void OnLoad(ConfigNode node)
-		{
-			EMRUtils.Log("OnLoad called");
-			if (GameSceneFilter.AnyInitializing.IsLoaded()) {
-				EMRUtils.Log("Loaded");
-				LoadMixtureConfigNodes(node);
-			}
-			base.OnLoad(node);
-		}
-
-		private void LoadMixtureConfigNodes(ConfigNode node)
-		{
-			mixtureConfigNodes = new Dictionary<float, MixtureConfigNode>();
-			foreach (ConfigNode tNode in node.GetNodes("MIXTURE")) {
-				MixtureConfigNode configNode = new MixtureConfigNode();
-				configNode.Load(tNode);
-				mixtureConfigNodes.Add(configNode.ratio, configNode);
-				EMRUtils.Log("Loaded ratio: " + configNode.ratio);
-			}
-
-			List<String> configList = mixtureConfigNodes.Values.Select(item => item.ToString()).ToList();
-			mixtureConfigNodesSerialized = ObjectSerializer.Serialize(configList);
-			EMRUtils.Log("Serialized ratios");
-		}
 
 		private void SetEditorFields()
 		{
