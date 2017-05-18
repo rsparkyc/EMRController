@@ -53,6 +53,7 @@ namespace EMRController
 		{
 			emrInClosedLoop = !emrInClosedLoop;
 			UpdateInFlightEMRParams();
+			InFlightUIChanged(null, null);
 		}
 
 		[KSPField(isPersistant = true, guiName = "Current EMR", guiActiveEditor = false, guiUnits = ":1"),
@@ -74,13 +75,36 @@ namespace EMRController
 
 		private void UpdateInFlightEMRParams()
 		{
+
+			Events["ChangeEMRMode"].guiName = "Change to " + (emrInClosedLoop ? "Open" : "Closed") + " Loop Mode";
+
+			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
+			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
+
+			if (emrInClosedLoop) {
+				float bestEMR = GetOptimalRatioForRemainingFuel();
+				EMRUtils.Log("Best EMR computed to be ", bestEMR, ":1");
+				string bestEMRSuffix = "";
+				if (bestEMR > maxNode.ratio) {
+					bestEMR = maxNode.ratio;
+					bestEMRSuffix = " (max)";
+					EMRUtils.Log("EMR higher than ", maxNode.ratio, ":1, capping");
+				}
+				else if (bestEMR < minNode.ratio) {
+					bestEMR = minNode.ratio;
+					bestEMRSuffix = " (min)";
+					EMRUtils.Log("EMR lower than ", minNode.ratio, ":1, capping");
+				}
+
+				currentEMR = bestEMR;
+				closedLoopEMRText = MathUtils.RoundSigFigs(bestEMR).ToString() + ":1" + bestEMRSuffix;
+			}
+
 			//EMRUtils.Log("Updating In Flight EMR Params");
 			Fields["currentEMR"].guiActive = !emrInClosedLoop;
 			Fields["closedLoopEMRText"].guiActive = emrInClosedLoop;
 
 			UI_FloatEdit currentEMREditor = (UI_FloatEdit)Fields["currentEMR"].uiControlFlight;
-			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
-			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
 			currentEMREditor.minValue = minNode.ratio;
 			currentEMREditor.maxValue = maxNode.ratio;
 			//EMRUtils.Log("Done Updating In Flight EMR Params");
@@ -144,7 +168,6 @@ namespace EMRController
 		private string BuildInFlightFuelReserveText()
 		{
 			var consumedResources = engineModule.GetConsumedResources();
-			Dictionary<int, double> remainingResources = new Dictionary<int, double>();
 			PropellantResources propResources = new PropellantResources(engineModule);
 
 			double amount;
@@ -179,6 +202,25 @@ namespace EMRController
 		{
 			double remainingVolume = diff * massFlow;
 			return MathUtils.ToStringSI(remainingVolume, 3, 0, "L") + " / " + MathUtils.FormatMass(remainingVolume * density, 3);
+		}
+
+		private float GetOptimalRatioForRemainingFuel()
+		{
+			PropellantResources propResources = new PropellantResources(engineModule);
+
+			double amount;
+			double maxAmount;
+			part.GetConnectedResourceTotals(propResources.Oxidizer.Id, out amount, out maxAmount);
+
+			double remainingOxidizer = amount;
+
+			double remainingFuel = 0;
+			foreach (var fuel in propResources.Fuels) {
+				part.GetConnectedResourceTotals(fuel.Id, out amount, out maxAmount);
+				remainingFuel += amount;
+			}
+
+			return (float)(remainingOxidizer / remainingFuel);
 		}
 
 		#endregion
