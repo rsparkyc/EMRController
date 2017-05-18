@@ -18,7 +18,14 @@ namespace EMRController
 
 					//Instead, I'll just find the max and do a find on use that.
 					var maxMassFlow = this.Max(prop => prop.PropellantMassFlow);
-					_oxidizer = this.Find(prop => prop.PropellantMassFlow == maxMassFlow);
+					var oxidizerCandidates = this.FindAll(prop => prop.PropellantMassFlow == maxMassFlow);
+					if (oxidizerCandidates.Count == 1) {
+						_oxidizer = oxidizerCandidates[0];
+					}
+					else {
+						//Multiple candidates found, looking for this first one with "ox" in the name
+						_oxidizer = oxidizerCandidates.Find(prop => prop.Name.ToLower().Contains("ox"));
+					}
 				}
 				return _oxidizer;
 			}

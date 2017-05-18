@@ -37,7 +37,7 @@ namespace EMRController
 			}
 		}
 
-		public object Name {
+		public string Name {
 			get {
 				return Propellant.name;
 			}

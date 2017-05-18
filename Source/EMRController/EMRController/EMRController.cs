@@ -175,6 +175,8 @@ namespace EMRController
 			part.GetConnectedResourceTotals(propResources.Oxidizer.Id, out amount, out maxAmount);
 			double remainingOxidizer = amount / propResources.Oxidizer.PropellantMassFlow;
 
+			//EMRUtils.Log("Remaining oxidizer (", propResources.Oxidizer.Name, "): ", remainingOxidizer);
+
 			double remainingFuel = 0;
 			float totalFuelMassFlow = 0;
 			foreach (var fuel in propResources.Fuels) {
@@ -182,6 +184,7 @@ namespace EMRController
 				totalFuelMassFlow += fuel.PropellantMassFlow;
 				remainingFuel += amount / fuel.PropellantMassFlow;
 			}
+			//EMRUtils.Log("Remaining fuel (", propResources.Fuels[0].Name, "): ", remainingFuel);
 
 			string returnValue;
 			double diff = remainingOxidizer - remainingFuel;
@@ -448,7 +451,7 @@ namespace EMRController
 
 		private void SetActionsAndGui()
 		{
-			Events["ToggleEMR"].guiName = (emrEnabled ? "Disable" : "Enable") + " EMR Controller";
+			Events["ToggleEMR"].guiName = (emrEnabled ? "Hide" : "Show") + " EMR Controller";
 			string[] fieldsToShow = new string[] {
 				"startingEMR", "finalEMR", "startingEMRText", "finalEMRText",
 				"emrSplitPercentage", "fuelReservePercentage", "fuelReserveText"
