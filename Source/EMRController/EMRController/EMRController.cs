@@ -74,7 +74,7 @@ namespace EMRController
 
 		private void UpdateInFlightEMRParams()
 		{
-			EMRUtils.Log("Updating In Flight EMR Params");
+			//EMRUtils.Log("Updating In Flight EMR Params");
 			Fields["currentEMR"].guiActive = !emrInClosedLoop;
 			Fields["closedLoopEMRText"].guiActive = emrInClosedLoop;
 
@@ -83,23 +83,22 @@ namespace EMRController
 			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
 			currentEMREditor.minValue = minNode.ratio;
 			currentEMREditor.maxValue = maxNode.ratio;
-			EMRUtils.Log("Done Updating In Flight EMR Params");
+			//EMRUtils.Log("Done Updating In Flight EMR Params");
 		}
 
 		private void BindInFlightCallbacks()
 		{
-			EMRUtils.Log("Binding In Flight Callbacks");
+			//EMRUtils.Log("Binding In Flight Callbacks");
 			string[] editorNames = new string[] { "currentEMR" };
 			foreach (var editorName in editorNames) {
 				Fields[editorName].uiControlFlight.onFieldChanged += InFlightUIChanged;
 			}
-			EMRUtils.Log("Done Binding In Flight Callbacks");
+			//EMRUtils.Log("Done Binding In Flight Callbacks");
 		}
 
 		private void InFlightUIChanged(BaseField baseField, object obj)
 		{
-
-			EMRUtils.Log("In Flight UI Changed");
+			//EMRUtils.Log("In Flight UI Changed");
 			UpdateEngineFloatCurve();
 			UpdateEnginPropUsage();
 			UpdateInFlightIspAndThrustDisplays();
@@ -107,7 +106,7 @@ namespace EMRController
 
 		private void UpdateInFlightIspAndThrustDisplays()
 		{
-			EMRUtils.Log("Updating Displays");
+			//EMRUtils.Log("Updating Displays");
 			currentEMRText = BuildIspAndThrustString(GenerateMixtureConfigNodeForRatio(currentEMR));
 			currentReserveText = BuildInFlightFuelReserveText();
 		}
@@ -123,8 +122,8 @@ namespace EMRController
 
 			MixtureConfigNode current = GenerateMixtureConfigNodeForRatio(currentEMR);
 			engineModule.maxThrust = current.thrust;
-			EMRUtils.Log("Setting max thrust to ", current.thrust);
-			EMRUtils.Log("Fuel flow set to ", engineModule.maxFuelFlow);
+			//EMRUtils.Log("Setting max thrust to ", current.thrust);
+			//EMRUtils.Log("Fuel flow set to ", engineModule.maxFuelFlow);
 			FloatCurve newCurve = FloatCurveTransformer.GenerateForPercentage(minNode.atmosphereCurve, maxNode.atmosphereCurve, ratioPercentage);
 			engineModule.atmosphereCurve = newCurve;
 
@@ -167,15 +166,20 @@ namespace EMRController
 				returnValue = "Balanced";
 			}
 			else if (diff > 0) {
-				returnValue = "Oxidizer: " + (diff * propResources.Oxidizer.PropellantMassFlow);
+				returnValue = "Oxidizer: " + FormatVolumeAndMass(diff, propResources.Oxidizer.PropellantMassFlow, propResources.Oxidizer.Density);
 			}
 			else {
-				returnValue = "Fuel: " + (-diff * totalFuelMassFlow);
+				returnValue = "Fuel: " + FormatVolumeAndMass(-diff, totalFuelMassFlow, propResources.AverageFuelDensity);
 			}
 			//EMRUtils.Log("Reserve: ", returnValue);
 			return returnValue;
 		}
 
+		private string FormatVolumeAndMass(double diff, double massFlow, double density)
+		{
+			double remainingVolume = diff * massFlow;
+			return MathUtils.ToStringSI(remainingVolume, 3, 0, "L") + " / " + MathUtils.FormatMass(remainingVolume * density, 3);
+		}
 
 		#endregion
 
@@ -202,7 +206,7 @@ namespace EMRController
 			UI_FloatRange(minValue = -50, maxValue = 50, stepIncrement = 1, scene = UI_Scene.Editor)]
 		public float fuelReservePercentage;
 
-		[KSPField(isPersistant = false, guiActive = false, guiActiveEditor = true, guiName = "Reserve")]
+		[KSPField(isPersistant = false, guiActive = false, guiActiveEditor = true, guiName = "Extra")]
 		public string fuelReserveText;
 
 		[KSPField(isPersistant = true)]
@@ -240,7 +244,7 @@ namespace EMRController
 				engineModule = part.FindModuleImplementing<ModuleEngines>();
 			}
 			if (engineModule == null) {
-				EMRUtils.Log("ERROR! could not find ModuleEngines");
+				EMRUtils.Log("ERROR! Could not find ModuleEngines");
 			}
 
 			if (propellantResources == null) {
@@ -417,8 +421,7 @@ namespace EMRController
 			if (mixtureConfigNodes == null && mixtureConfigNodesSerialized != null) {
 				EMRUtils.Log("ConfigNode Deserialization Needed");
 				mixtureConfigNodes = new Dictionary<float, MixtureConfigNode>();
-				List<string> deserialized = 
-					ObjectSerializer.Deserialize<List<string>>(mixtureConfigNodesSerialized);
+				List<string> deserialized = ObjectSerializer.Deserialize<List<string>>(mixtureConfigNodesSerialized);
 				foreach (var serializedItem in deserialized) {
 					MixtureConfigNode node = new MixtureConfigNode(serializedItem);
 					EMRUtils.Log("Deserialized ratio: ", node.ratio, " (", node.atmosphereCurve.Evaluate(0), "/", node.atmosphereCurve.Evaluate(1), ")");

@@ -42,6 +42,12 @@ namespace EMRController
 			}
 		}
 
+		public double AverageFuelDensity {
+			get {
+				return Fuels.Sum(fuel => fuel.Ratio * fuel.Density) / (RatioTotals - Oxidizer.Ratio);
+			}
+		}
+
 		/// <summary>
 		/// This function will match a propellant with a resource, so we can get things like Ratio and Density in one object
 		/// It is required that each propellant have a matching resource
