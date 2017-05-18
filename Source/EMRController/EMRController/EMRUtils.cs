@@ -7,7 +7,7 @@ namespace EMRController
 {
 	static class EMRUtils
 	{
-		private const string logPreix = "[EMR] - ";
+		private const string logPreix = "[EMR] ";
 		public static void Log(params object[] message)
 		{
 			Log(Array.ConvertAll(message, item => item.ToString()));

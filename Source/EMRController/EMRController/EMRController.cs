@@ -91,17 +91,63 @@ namespace EMRController
 			EMRUtils.Log("Binding In Flight Callbacks");
 			string[] editorNames = new string[] { "currentEMR" };
 			foreach (var editorName in editorNames) {
-				Fields[editorName].uiControlEditor.onFieldChanged += InFlightUIChanged;
+				Fields[editorName].uiControlFlight.onFieldChanged += InFlightUIChanged;
 			}
 			EMRUtils.Log("Done Binding In Flight Callbacks");
 		}
 
 		private void InFlightUIChanged(BaseField baseField, object obj)
 		{
-			//UpdateIspAndThrustDisplay();
-			//SetNeededFuel();
-			//UpdateAllParts();
+
+			EMRUtils.Log("In Flight UI Changed");
+			UpdateInFlightIspAndThrustDisplays();
+			UpdateEngineFloatCurve();
+			UpdateEnginPropUsage();
 		}
+
+		private void UpdateInFlightIspAndThrustDisplays()
+		{
+			EMRUtils.Log("Updating Displays");
+			currentEMRText = BuildIspAndThrustString(GenerateMixtureConfigNodeForRatio(currentEMR));
+			fuelReserveText = BuildInFlightFuelReserveText();
+		}
+
+		private void UpdateEngineFloatCurve()
+		{
+
+			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
+			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
+
+			float fullRatioDiff = maxNode.ratio - minNode.ratio;
+			float currentRatioDiff = currentEMR - minNode.ratio;
+			float ratioPercentage = currentRatioDiff / fullRatioDiff;
+
+			MixtureConfigNode current = GenerateMixtureConfigNodeForRatio(currentEMR);
+			engineModule.maxThrust = current.thrust;
+			EMRUtils.Log("Setting max thrust to ", current.thrust);
+
+			FloatCurve newCurve = FloatCurveTransformer.GenerateForPercentage(minNode.atmosphereCurve, maxNode.atmosphereCurve, ratioPercentage);
+			engineModule.atmosphereCurve = newCurve;
+
+		}
+
+		private void UpdateEnginPropUsage()
+		{
+			Dictionary<int, float> ratios = GetRatiosForEMR(propellantResources, currentEMR);
+
+			foreach (Propellant prop in engineModule.propellants) {
+				if (ratios.ContainsKey(prop.id)) {
+					prop.ratio = ratios[prop.id];
+				}
+			}
+		}
+
+		private string BuildInFlightFuelReserveText()
+		{
+			return "";
+		}
+
+
 		#endregion
 
 		#region Editor Controls
@@ -166,6 +212,10 @@ namespace EMRController
 			}
 			if (engineModule == null) {
 				EMRUtils.Log("ERROR! could not find ModuleEngines");
+			}
+
+			if (propellantResources == null) {
+				propellantResources = new PropellantResources(engineModule);
 			}
 			base.OnStart(state);
 		}
