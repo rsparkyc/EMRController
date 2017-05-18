@@ -100,21 +100,20 @@ namespace EMRController
 		{
 
 			EMRUtils.Log("In Flight UI Changed");
-			UpdateInFlightIspAndThrustDisplays();
 			UpdateEngineFloatCurve();
 			UpdateEnginPropUsage();
+			UpdateInFlightIspAndThrustDisplays();
 		}
 
 		private void UpdateInFlightIspAndThrustDisplays()
 		{
 			EMRUtils.Log("Updating Displays");
 			currentEMRText = BuildIspAndThrustString(GenerateMixtureConfigNodeForRatio(currentEMR));
-			fuelReserveText = BuildInFlightFuelReserveText();
+			currentReserveText = BuildInFlightFuelReserveText();
 		}
 
 		private void UpdateEngineFloatCurve()
 		{
-
 			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
 			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
 
@@ -145,7 +144,36 @@ namespace EMRController
 
 		private string BuildInFlightFuelReserveText()
 		{
-			return "";
+			var consumedResources = engineModule.GetConsumedResources();
+			Dictionary<int, double> remainingResources = new Dictionary<int, double>();
+			PropellantResources propResources = new PropellantResources(engineModule);
+
+			double amount;
+			double maxAmount;
+			part.GetConnectedResourceTotals(propResources.Oxidizer.Id, out amount, out maxAmount);
+			double remainingOxidizer = amount / propResources.Oxidizer.PropellantMassFlow;
+
+			double remainingFuel = 0;
+			float totalFuelMassFlow = 0;
+			foreach (var fuel in propResources.Fuels) {
+				part.GetConnectedResourceTotals(fuel.Id, out amount, out maxAmount);
+				totalFuelMassFlow += fuel.PropellantMassFlow;
+				remainingFuel += amount / fuel.PropellantMassFlow;
+			}
+
+			string returnValue;
+			double diff = remainingOxidizer - remainingFuel;
+			if (diff == 0) {
+				returnValue = "Balanced";
+			}
+			else if (diff > 0) {
+				returnValue = "Oxidizer: " + (diff * propResources.Oxidizer.PropellantMassFlow);
+			}
+			else {
+				returnValue = "Fuel: " + (-diff * totalFuelMassFlow);
+			}
+			//EMRUtils.Log("Reserve: ", returnValue);
+			return returnValue;
 		}
 
 
@@ -217,6 +245,10 @@ namespace EMRController
 
 			if (propellantResources == null) {
 				propellantResources = new PropellantResources(engineModule);
+			}
+
+			if (HighLogic.LoadedSceneIsFlight) {
+				InFlightUIChanged(null, null);
 			}
 			base.OnStart(state);
 		}

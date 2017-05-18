@@ -68,6 +68,7 @@ namespace EMRController
 		}
 
 		Dictionary<int, PropellantResource> resourceCache = new Dictionary<int, PropellantResource>();
+
 		public PropellantResource GetById(int id)
 		{
 			if (!resourceCache.ContainsKey(id)) {
