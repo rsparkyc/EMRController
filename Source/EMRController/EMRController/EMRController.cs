@@ -36,22 +36,26 @@ namespace EMRController
 
 		private void UpdateInFlightEMRParams()
 		{
+			EMRUtils.Log("Updating In Flight EMR Params");
 			Fields["currentEMR"].guiActive = !emrInClosedLoop;
 			Fields["closedLoopEMRText"].guiActive = emrInClosedLoop;
 
-			UI_FloatEdit currentEMREditor = (UI_FloatEdit)Fields["currentEMR"].uiControlEditor;
+			UI_FloatEdit currentEMREditor = (UI_FloatEdit)Fields["currentEMR"].uiControlFlight;
 			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
 			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
 			currentEMREditor.minValue = minNode.ratio;
 			currentEMREditor.maxValue = maxNode.ratio;
+			EMRUtils.Log("Done Updating In Flight EMR Params");
 		}
 
 		private void BindInFlightCallbacks()
 		{
+			EMRUtils.Log("Binding In Flight Callbacks");
 			string[] editorNames = new string[] { "currentEMR" };
 			foreach (var editorName in editorNames) {
 				Fields[editorName].uiControlEditor.onFieldChanged += InFlightUIChanged;
 			}
+			EMRUtils.Log("Done Binding In Flight Callbacks");
 		}
 
 		private void InFlightUIChanged(BaseField baseField, object obj)
@@ -108,6 +112,8 @@ namespace EMRController
 		{
 			EMRUtils.Log("OnStart called");
 
+			DeserializeNodes();
+
 			if (HighLogic.LoadedSceneIsFlight) {
 				BindInFlightCallbacks();
 				UpdateInFlightEMRParams();
@@ -115,7 +121,6 @@ namespace EMRController
 
 			BindCallbacks();
 
-			DeserializeNodes();
 			UpdateIspAndThrustDisplay();
 
 			if (engineModule == null) {
