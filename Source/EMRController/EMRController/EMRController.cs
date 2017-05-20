@@ -19,11 +19,11 @@ namespace EMRController
 
 		public override void OnLoad(ConfigNode node)
 		{
-			EMRUtils.Log("OnLoad called");
+			//EMRUtils.Log("OnLoad called");
 			if (GameSceneFilter.AnyInitializing.IsLoaded()) {
-				EMRUtils.Log("Loading");
+				//EMRUtils.Log("Loading");
 				LoadMixtureConfigNodes(node);
-				EMRUtils.Log("Loaded");
+				//EMRUtils.Log("Loaded");
 			}
 			base.OnLoad(node);
 		}
@@ -35,12 +35,12 @@ namespace EMRController
 				MixtureConfigNode configNode = new MixtureConfigNode();
 				configNode.Load(tNode);
 				mixtureConfigNodes.Add(configNode.ratio, configNode);
-				EMRUtils.Log("Loaded ratio: " + configNode.ratio);
+				//EMRUtils.Log("Loaded ratio: " + configNode.ratio);
 			}
 
 			List<String> configList = mixtureConfigNodes.Values.Select(item => item.ToString()).ToList();
 			mixtureConfigNodesSerialized = ObjectSerializer.Serialize(configList);
-			EMRUtils.Log("Serialized ratios");
+			//EMRUtils.Log("Serialized ratios");
 		}
 		#endregion
 
@@ -75,15 +75,15 @@ namespace EMRController
 
 		private void UpdateInFlightEMRParams()
 		{
-
 			Events["ChangeEMRMode"].guiName = "Change to " + (emrInClosedLoop ? "Open" : "Closed") + " Loop Mode";
 
 			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
 			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
 
 			if (emrInClosedLoop) {
+				//EMRUtils.Log("Closed Loop Detected");
 				float bestEMR = GetOptimalRatioForRemainingFuel();
-				EMRUtils.Log("Best EMR computed to be ", bestEMR, ":1");
+				//EMRUtils.Log("Best EMR computed to be ", bestEMR, ":1");
 				string bestEMRSuffix = "";
 				if (bestEMR > maxNode.ratio) {
 					bestEMR = maxNode.ratio;
@@ -124,7 +124,7 @@ namespace EMRController
 		{
 			//EMRUtils.Log("In Flight UI Changed");
 			UpdateEngineFloatCurve();
-			UpdateEnginPropUsage();
+			UpdateEnginePropUsage();
 			UpdateInFlightIspAndThrustDisplays();
 		}
 
@@ -139,6 +139,12 @@ namespace EMRController
 		{
 			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
 			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
+			if (currentEMR < minNode.ratio) {
+				currentEMR = minNode.ratio;
+			}
+			else if (currentEMR > maxNode.ratio) {
+				currentEMR = maxNode.ratio;
+			}
 
 			float fullRatioDiff = maxNode.ratio - minNode.ratio;
 			float currentRatioDiff = currentEMR - minNode.ratio;
@@ -154,7 +160,7 @@ namespace EMRController
 			engineModule.maxFuelFlow = current.thrust / (newCurve.Evaluate(0.0f) * engineModule.g);
 		}
 
-		private void UpdateEnginPropUsage()
+		private void UpdateEnginePropUsage()
 		{
 			Dictionary<int, float> ratios = GetRatiosForEMR(propellantResources, currentEMR);
 
@@ -167,44 +173,39 @@ namespace EMRController
 
 		private string BuildInFlightFuelReserveText()
 		{
-			var consumedResources = engineModule.GetConsumedResources();
+			EMRUtils.Log("Building new PropellantResources to build fuel reserve text");
 			PropellantResources propResources = new PropellantResources(engineModule);
 
-			double amount;
-			double maxAmount;
-			part.GetConnectedResourceTotals(propResources.Oxidizer.Id, out amount, out maxAmount);
-			double remainingOxidizer = amount / propResources.Oxidizer.PropellantMassFlow;
 
-			//EMRUtils.Log("Remaining oxidizer (", propResources.Oxidizer.Name, "): ", remainingOxidizer);
+			Dictionary<int, double> propAmounts = new Dictionary<int, double>();
+			foreach (var prop in propResources) {
+				double propVolume;
+				double propMaxVolume;
+				part.GetConnectedResourceTotals(prop.Id, out propVolume, out propMaxVolume);
+				propAmounts.Add(prop.Id, propVolume / prop.Ratio);
+			}
 
-			double remainingFuel = 0;
-			float totalFuelMassFlow = 0;
-			foreach (var fuel in propResources.Fuels) {
-				part.GetConnectedResourceTotals(fuel.Id, out amount, out maxAmount);
-				totalFuelMassFlow += fuel.PropellantMassFlow;
-				remainingFuel += amount / fuel.PropellantMassFlow;
-			}
-			//EMRUtils.Log("Remaining fuel (", propResources.Fuels[0].Name, "): ", remainingFuel);
+			double minAmount = propAmounts.Min(item => item.Value);
 
-			string returnValue;
-			double diff = remainingOxidizer - remainingFuel;
-			if (diff == 0) {
-				returnValue = "Balanced";
+			StringBuilder result = StringBuilderCache.Acquire();
+			foreach (var kvp in propAmounts) {
+				double propDiff = kvp.Value - minAmount;
+				if (propDiff > 0) {
+					if (result.Length > 0) {
+						result.Append(System.Environment.NewLine);
+					}
+					PropellantResource propResource = propResources.GetById(kvp.Key);
+					double fuelVolume = propDiff * propResource.Ratio;
+					result.Append(propResource.Name).Append(": ").Append(FormatVolumeAndMass(fuelVolume, propResource.Density));
+				}
 			}
-			else if (diff > 0) {
-				returnValue = "Oxidizer: " + FormatVolumeAndMass(diff, propResources.Oxidizer.PropellantMassFlow, propResources.Oxidizer.Density);
-			}
-			else {
-				returnValue = "Fuel: " + FormatVolumeAndMass(-diff, totalFuelMassFlow, propResources.AverageFuelDensity);
-			}
-			//EMRUtils.Log("Reserve: ", returnValue);
-			return returnValue;
+			return result.ToStringAndRelease();
 		}
 
-		private string FormatVolumeAndMass(double diff, double massFlow, double density)
+		private string FormatVolumeAndMass(double diff, double density)
 		{
-			double remainingVolume = diff * massFlow;
-			return MathUtils.ToStringSI(remainingVolume, 3, 0, "L") + " / " + MathUtils.FormatMass(remainingVolume * density, 3);
+			double remainingMass = diff * density;
+			return MathUtils.ToStringSI(diff, 4, 0, "L") + " / " + MathUtils.FormatMass(remainingMass, 3);
 		}
 
 		private float GetOptimalRatioForRemainingFuel()
@@ -223,7 +224,7 @@ namespace EMRController
 				remainingFuel += amount;
 			}
 
-			return (float)(remainingOxidizer / remainingFuel);
+			return (float)((remainingOxidizer * propResources.Oxidizer.Density) / (remainingFuel * propResources.AverageFuelDensity));
 		}
 
 		#endregion
@@ -272,7 +273,7 @@ namespace EMRController
 		ModuleEngines engineModule = null;
 		public override void OnStart(StartState state)
 		{
-			EMRUtils.Log("OnStart called");
+			//EMRUtils.Log("OnStart called");
 
 			DeserializeNodes();
 
@@ -326,7 +327,7 @@ namespace EMRController
 				else {
 					prop.ratio = propellantResources.GetById(prop.id).Ratio;
 				}
-				//EMRUtils.Log("New ratio: ", prop.ratio);
+				//EMRUtils.Log("New ratio for ", prop.name, ": ", prop.ratio);
 				if (propellantResources.Oxidizer.Id == prop.id && fuelReservePercentage > 0) {
 					//EMRUtils.Log("Adjusting oxidizer capacity to account for boiloff");
 					prop.ratio = prop.ratio * ((100 - fuelReservePercentage) / 100);
@@ -348,12 +349,15 @@ namespace EMRController
 
 			// let's sum up all the mass flows for our fuels
 			var fuelMassFlow = propellantResources.Fuels.Sum(fuel => fuel.PropellantMassFlow);
+			//EMRUtils.Log("Fuel mass flow: ", fuelMassFlow);
 
 			// oxidizer mass flow will be that times the EMR
 			var oxidizerMassFlow = fuelMassFlow * EMR;
+			//EMRUtils.Log("Oxidier mass flow: ", oxidizerMassFlow);
 
 			// dividing that by density should give us the ratios tha we want
 			var oxidierRatio = oxidizerMassFlow / propellantResources.Oxidizer.Density;
+			//EMRUtils.Log("Oxidier ratio: ", oxidierRatio);
 
 			Dictionary<int, float> ratios = new Dictionary<int, float>();
 			ratios.Add(propellantResources.Oxidizer.Id, oxidierRatio);
@@ -366,7 +370,7 @@ namespace EMRController
 			foreach (var editorName in editorNames) {
 				Fields[editorName].uiControlEditor.onFieldChanged += UIChanged;
 			}
-			EMRUtils.Log("Bound Callbacks");
+			//EMRUtils.Log("Bound Callbacks");
 		}
 
 		private void UIChanged(BaseField baseField, object obj)
@@ -397,7 +401,7 @@ namespace EMRController
 
 		private string BuildIspAndThrustString(MixtureConfigNode node)
 		{
-			return node.atmosphereCurve.Evaluate(0) + "s   Thrust: " + MathUtils.ToStringSI(node.thrust, 2, 0, "N");
+			return node.atmosphereCurve.Evaluate(0) + "s   Thrust: " + MathUtils.ToStringSI(node.thrust, 4, 0, "N");
 		}
 
 		private string BuildFuelReserveText(float fuelReservePercentage)
@@ -428,11 +432,11 @@ namespace EMRController
 
 		private void SetEditorFields()
 		{
-			EMRUtils.Log("Setting editor fields");
+			//EMRUtils.Log("Setting editor fields");
 			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
-			EMRUtils.Log("Minimum EMR: ", minNode.ratio);
+			//EMRUtils.Log("Minimum EMR: ", minNode.ratio);
 			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
-			EMRUtils.Log("Maximum EMR: ", maxNode.ratio);
+			//EMRUtils.Log("Maximum EMR: ", maxNode.ratio);
 
 			UI_FloatEdit startFloatEdit = (UI_FloatEdit)Fields["startingEMR"].uiControlEditor;
 			UI_FloatEdit finalFloatEdit = (UI_FloatEdit)Fields["finalEMR"].uiControlEditor;
@@ -464,15 +468,15 @@ namespace EMRController
 		private void DeserializeNodes()
 		{
 			if (mixtureConfigNodes == null && mixtureConfigNodesSerialized != null) {
-				EMRUtils.Log("ConfigNode Deserialization Needed");
+				//EMRUtils.Log("ConfigNode Deserialization Needed");
 				mixtureConfigNodes = new Dictionary<float, MixtureConfigNode>();
 				List<string> deserialized = ObjectSerializer.Deserialize<List<string>>(mixtureConfigNodesSerialized);
 				foreach (var serializedItem in deserialized) {
 					MixtureConfigNode node = new MixtureConfigNode(serializedItem);
-					EMRUtils.Log("Deserialized ratio: ", node.ratio, " (", node.atmosphereCurve.Evaluate(0), "/", node.atmosphereCurve.Evaluate(1), ")");
+					//EMRUtils.Log("Deserialized ratio: ", node.ratio, " (", node.atmosphereCurve.Evaluate(0), "/", node.atmosphereCurve.Evaluate(1), ")");
 					mixtureConfigNodes.Add(node.ratio, node);
 				}
-				EMRUtils.Log("Deserialized ", mixtureConfigNodes.Count, " configs");
+				//EMRUtils.Log("Deserialized ", mixtureConfigNodes.Count, " configs");
 
 				SetEditorFields();
 				SetActionsAndGui();

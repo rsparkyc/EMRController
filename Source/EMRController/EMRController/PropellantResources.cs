@@ -13,6 +13,7 @@ namespace EMRController
 		public PropellantResource Oxidizer {
 			get {
 				if (_oxidizer == null) {
+					//EMRUtils.Log("Oxidizer detection needed");
 					// I tried doing the following, but was getting exceptions throw
 					//_oxidizer = this.MaxAt(prop => prop.PropellantMassFlow);
 
@@ -21,10 +22,12 @@ namespace EMRController
 					var oxidizerCandidates = this.FindAll(prop => prop.PropellantMassFlow == maxMassFlow);
 					if (oxidizerCandidates.Count == 1) {
 						_oxidizer = oxidizerCandidates[0];
+						//EMRUtils.Log("Oxidizer detected as ", _oxidizer.Name, " (with a mass flow of ", _oxidizer.PropellantMassFlow, ")");
 					}
 					else {
 						//Multiple candidates found, looking for this first one with "ox" in the name
 						_oxidizer = oxidizerCandidates.Find(prop => prop.Name.ToLower().Contains("ox"));
+						//EMRUtils.Log("Multiple Oxidizer candidates found, using ", _oxidizer.Name);
 					}
 				}
 				return _oxidizer;
@@ -75,9 +78,10 @@ namespace EMRController
 		private void Build(IEnumerable<Propellant> propellants, IEnumerable<PartResourceDefinition> resources)
 		{
 			foreach (var prop in propellants) {
-				Add(new PropellantResource(prop, resources.First(res => res.id == prop.id)));
+				var resource = resources.First(res => res.id == prop.id);
+				Add(new PropellantResource(prop, resource));
 			}
-			EMRUtils.Log("Built PropellantResources with ", Count, " fuels");
+			//EMRUtils.Log("Built PropellantResources with ", Count, " fuels");
 		}
 
 		Dictionary<int, PropellantResource> resourceCache = new Dictionary<int, PropellantResource>();

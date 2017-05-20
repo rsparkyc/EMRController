@@ -33,7 +33,9 @@ namespace EMRController
 
 		public float PropellantMassFlow {
 			get {
-				return Density * Ratio;
+				float pmf = Density * Ratio;
+				//EMRUtils.Log("Calculating PropMassFlow for ", Name, " as ", Density, "*", Ratio, "=", pmf);
+				return pmf;
 			}
 		}
 
@@ -51,7 +53,7 @@ namespace EMRController
 				throw new ArgumentException(errorMessage);
 			}
 
-			// We're going to make a clone of the propellant, since we want to leave these "stock" rations alone
+			// We're going to make a clone of the propellant, since we want to leave these "stock" ratios alone
 			Propellant = new Propellant() {
 				id = propellant.id,
 				name = propellant.name,
@@ -59,6 +61,8 @@ namespace EMRController
 			};
 
 			Resource = resource;
+
+			//EMRUtils.Log("Created new PropellantResource: ", Name, ", ratio: ", Propellant.ratio);
 		}
 	}
 }
