@@ -5,6 +5,9 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
+using EMRController.Config;
+using EMRController.Utils;
+
 namespace EMRController
 {
 	public class EMRController : PartModule
@@ -15,7 +18,25 @@ namespace EMRController
 		[SerializeField]
 		public byte[] mixtureConfigNodesSerialized;
 
-		private Dictionary<float, MixtureConfigNode> mixtureConfigNodes;
+		[KSPField]
+		public string currentConfigName;
+
+		private MixtureConfigNodeProcessor processor;
+
+		private MixtureConfigNodePair CurrentNodePair {
+			get {
+				if (processor == null) {
+					DeserializeNodes();
+				}
+
+				MixtureConfigNodePair pair = processor.GetForConfigName(currentConfigName);
+				if (pair != null) {
+					return pair;
+				}
+
+				return MixtureConfigNodePair.NotConfigured();
+			}
+		}
 
 		public override void OnLoad(ConfigNode node)
 		{
@@ -30,16 +51,8 @@ namespace EMRController
 
 		private void LoadMixtureConfigNodes(ConfigNode node)
 		{
-			mixtureConfigNodes = new Dictionary<float, MixtureConfigNode>();
-			foreach (ConfigNode tNode in node.GetNodes("MIXTURE")) {
-				MixtureConfigNode configNode = new MixtureConfigNode();
-				configNode.Load(tNode);
-				mixtureConfigNodes.Add(configNode.ratio, configNode);
-				//EMRUtils.Log("Loaded ratio: " + configNode.ratio);
-			}
-
-			List<String> configList = mixtureConfigNodes.Values.Select(item => item.ToString()).ToList();
-			mixtureConfigNodesSerialized = ObjectSerializer.Serialize(configList);
+			processor = new MixtureConfigNodeProcessor(node);
+			mixtureConfigNodesSerialized = processor.Serialized;
 			//EMRUtils.Log("Serialized ratios");
 		}
 		#endregion
@@ -51,9 +64,17 @@ namespace EMRController
 		[KSPEvent(guiActive = true, guiActiveEditor = false)]
 		public void ChangeEMRMode()
 		{
-			emrInClosedLoop = !emrInClosedLoop;
-			UpdateInFlightEMRParams();
-			InFlightUIChanged(null, null);
+			if (!CurrentNodePair.Disabled) {
+				emrInClosedLoop = !emrInClosedLoop;
+				UpdateInFlightEMRParams();
+				InFlightUIChanged(null, null);
+			}
+		}
+
+		[KSPAction("Change EMR Mode")]
+		public void ChangeEMRModeAction(KSPActionParam param)
+		{
+			ChangeEMRMode();
 		}
 
 		[KSPField(isPersistant = true, guiName = "Current EMR", guiActiveEditor = false, guiUnits = ":1"),
@@ -77,23 +98,24 @@ namespace EMRController
 		{
 			Events["ChangeEMRMode"].guiName = "Change to " + (emrInClosedLoop ? "Open" : "Closed") + " Loop Mode";
 
-			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
-			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
+			if (CurrentNodePair.Disabled) {
+				return;
+			}
 
 			if (emrInClosedLoop) {
 				//EMRUtils.Log("Closed Loop Detected");
 				float bestEMR = GetOptimalRatioForRemainingFuel();
 				//EMRUtils.Log("Best EMR computed to be ", bestEMR, ":1");
 				string bestEMRSuffix = "";
-				if (bestEMR > maxNode.ratio) {
-					bestEMR = maxNode.ratio;
+				if (bestEMR > CurrentNodePair.Max.ratio) {
+					EMRUtils.Log("EMR higher than ", CurrentNodePair.Max.ratio, ":1 (was ", bestEMR, ":1), capping");
+					bestEMR = CurrentNodePair.Max.ratio;
 					bestEMRSuffix = " (max)";
-					EMRUtils.Log("EMR higher than ", maxNode.ratio, ":1, capping");
 				}
-				else if (bestEMR < minNode.ratio) {
-					bestEMR = minNode.ratio;
+				else if (bestEMR < CurrentNodePair.Min.ratio) {
+					EMRUtils.Log("EMR lower than ", CurrentNodePair.Min.ratio, ":1 (was ", bestEMR, ":1), capping");
+					bestEMR = CurrentNodePair.Min.ratio;
 					bestEMRSuffix = " (min)";
-					EMRUtils.Log("EMR lower than ", minNode.ratio, ":1, capping");
 				}
 
 				currentEMR = bestEMR;
@@ -105,23 +127,30 @@ namespace EMRController
 			Fields["closedLoopEMRText"].guiActive = emrInClosedLoop;
 
 			UI_FloatEdit currentEMREditor = (UI_FloatEdit)Fields["currentEMR"].uiControlFlight;
-			currentEMREditor.minValue = minNode.ratio;
-			currentEMREditor.maxValue = maxNode.ratio;
+			currentEMREditor.minValue = CurrentNodePair.Min.ratio;
+			currentEMREditor.maxValue = CurrentNodePair.Max.ratio;
 			//EMRUtils.Log("Done Updating In Flight EMR Params");
 		}
 
+		private bool inFlightCallbacksBound = false;
 		private void BindInFlightCallbacks()
 		{
-			//EMRUtils.Log("Binding In Flight Callbacks");
-			string[] editorNames = new string[] { "currentEMR" };
-			foreach (var editorName in editorNames) {
-				Fields[editorName].uiControlFlight.onFieldChanged += InFlightUIChanged;
+			if (!inFlightCallbacksBound) {
+				//EMRUtils.Log("Binding In Flight Callbacks");
+				string[] editorNames = new string[] { "currentEMR" };
+				foreach (var editorName in editorNames) {
+					Fields[editorName].uiControlFlight.onFieldChanged += InFlightUIChanged;
+				}
+				inFlightCallbacksBound = true;
 			}
 			//EMRUtils.Log("Done Binding In Flight Callbacks");
 		}
 
 		private void InFlightUIChanged(BaseField baseField, object obj)
 		{
+			if (CurrentNodePair.Disabled) {
+				return;
+			}
 			//EMRUtils.Log("In Flight UI Changed");
 			UpdateEngineFloatCurve();
 			UpdateEnginePropUsage();
@@ -137,27 +166,25 @@ namespace EMRController
 
 		private void UpdateEngineFloatCurve()
 		{
-			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
-			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
-			if (currentEMR < minNode.ratio) {
-				currentEMR = minNode.ratio;
-			}
-			else if (currentEMR > maxNode.ratio) {
-				currentEMR = maxNode.ratio;
+			// If it's less then the min ratio, we're going to assume that it's not initialized, 
+			// so we'll bring it up to max which is normally where it would start
+			if (currentEMR < CurrentNodePair.Min.ratio || currentEMR > CurrentNodePair.Max.ratio) {
+				currentEMR = CurrentNodePair.Max.ratio;
 			}
 
-			float fullRatioDiff = maxNode.ratio - minNode.ratio;
-			float currentRatioDiff = currentEMR - minNode.ratio;
+			float fullRatioDiff = CurrentNodePair.Max.ratio - CurrentNodePair.Min.ratio;
+			float currentRatioDiff = currentEMR - CurrentNodePair.Min.ratio;
 			float ratioPercentage = currentRatioDiff / fullRatioDiff;
 
 			MixtureConfigNode current = GenerateMixtureConfigNodeForRatio(currentEMR);
-			engineModule.maxThrust = current.thrust;
+			engineModule.maxThrust = current.maxThrust;
+			engineModule.minThrust = current.minThrust;
 			//EMRUtils.Log("Setting max thrust to ", current.thrust);
 			//EMRUtils.Log("Fuel flow set to ", engineModule.maxFuelFlow);
-			FloatCurve newCurve = FloatCurveTransformer.GenerateForPercentage(minNode.atmosphereCurve, maxNode.atmosphereCurve, ratioPercentage);
+			FloatCurve newCurve = FloatCurveTransformer.GenerateForPercentage(CurrentNodePair.Min.atmosphereCurve, CurrentNodePair.Max.atmosphereCurve, ratioPercentage);
 			engineModule.atmosphereCurve = newCurve;
 
-			engineModule.maxFuelFlow = current.thrust / (newCurve.Evaluate(0.0f) * engineModule.g);
+			engineModule.maxFuelFlow = current.maxThrust / (newCurve.Evaluate(0.0f) * engineModule.g);
 		}
 
 		private void UpdateEnginePropUsage()
@@ -173,16 +200,21 @@ namespace EMRController
 
 		private string BuildInFlightFuelReserveText()
 		{
-			EMRUtils.Log("Building new PropellantResources to build fuel reserve text");
+			//EMRUtils.Log("Building new PropellantResources to build fuel reserve text");
 			PropellantResources propResources = new PropellantResources(engineModule);
-
 
 			Dictionary<int, double> propAmounts = new Dictionary<int, double>();
 			foreach (var prop in propResources) {
 				double propVolume;
 				double propMaxVolume;
-				part.GetConnectedResourceTotals(prop.Id, out propVolume, out propMaxVolume);
-				propAmounts.Add(prop.Id, propVolume / prop.Ratio);
+				try {
+					part.GetConnectedResourceTotals(prop.Id, out propVolume, out propMaxVolume);
+					propAmounts.Add(prop.Id, propVolume / prop.Ratio);
+				}
+				catch (Exception ex) {
+					EMRUtils.Log("Error trying to get resource ", prop.Name, " (", ex.Message, ")");
+					propAmounts.Add(prop.Id, 0);
+				}
 			}
 
 			double minAmount = propAmounts.Min(item => item.Value);
@@ -261,8 +293,10 @@ namespace EMRController
 		[KSPEvent(guiActive = true, guiActiveEditor = true)]
 		public void ToggleEMR()
 		{
-			emrEnabled = !emrEnabled;
-			SetActionsAndGui();
+			if (!CurrentNodePair.Disabled) {
+				emrEnabled = !emrEnabled;
+				SetActionsAndGui();
+			}
 		}
 
 		#endregion
@@ -273,22 +307,10 @@ namespace EMRController
 		ModuleEngines engineModule = null;
 		public override void OnStart(StartState state)
 		{
-			//EMRUtils.Log("OnStart called");
-
-			DeserializeNodes();
-
-			if (HighLogic.LoadedSceneIsFlight) {
-				BindInFlightCallbacks();
-				UpdateInFlightEMRParams();
-			}
-
-			BindCallbacks();
-
-			UpdateIspAndThrustDisplay();
-
 			if (engineModule == null) {
 				engineModule = part.FindModuleImplementing<ModuleEngines>();
 			}
+
 			if (engineModule == null) {
 				EMRUtils.Log("ERROR! Could not find ModuleEngines");
 			}
@@ -297,20 +319,58 @@ namespace EMRController
 				propellantResources = new PropellantResources(engineModule);
 			}
 
+			DetectConfig();
+			DeserializeNodes();
+			BindCallbacks();
+
+			ToggleControlsBasedOnConfigs();
+			if (!CurrentNodePair.Disabled) {
+				SetEditorFields();
+			}
+			SetActionsAndGui();
+
+			if (HighLogic.LoadedSceneIsFlight) {
+				BindInFlightCallbacks();
+				UpdateInFlightEMRParams();
+			}
+
+			UpdateIspAndThrustDisplay();
+			SetNeededFuel();
+
 			if (HighLogic.LoadedSceneIsFlight) {
 				InFlightUIChanged(null, null);
 			}
 			base.OnStart(state);
 		}
 
+		private void ToggleControlsBasedOnConfigs()
+		{
+			if (CurrentNodePair.Disabled) {
+				emrEnabled = false;
+			}
+
+			Events["ToggleEMR"].guiActive = !CurrentNodePair.Disabled;
+			Events["ToggleEMR"].guiActiveEditor = !CurrentNodePair.Disabled;
+			Events["ChangeEMRMode"].guiActive = !CurrentNodePair.Disabled;
+
+			string[] fields = new string[] { "closedLoopEMRText", "currentEMRText", "currentReserveText" };
+			foreach (string field in fields) {
+				Fields[field].guiActive = !CurrentNodePair.Disabled;
+			}
+
+			Actions["ChangeEMRModeAction"].active = !CurrentNodePair.Disabled;
+		}
+
 		private PropellantResources propellantResources;
 		private void SetNeededFuel()
 		{
-			if (propellantResources == null) {
-				propellantResources = new PropellantResources(engineModule);
-			}
+			if (!CurrentNodePair.Disabled) {
+				if (propellantResources == null) {
+					propellantResources = new PropellantResources(engineModule);
+				}
 
-			SetNewRatios(propellantResources, startingEMR, finalEMR, emrSplitPercentage);
+				SetNewRatios(propellantResources, startingEMR, finalEMR, emrSplitPercentage);
+			}
 		}
 
 		private void SetNewRatios(PropellantResources propellantResources, float startingEMR, float finalEMR, float emrSplitPercentage)
@@ -337,7 +397,6 @@ namespace EMRController
 					prop.ratio = prop.ratio * ((100 + fuelReservePercentage) / 100);
 				}
 			}
-
 		}
 
 		Dictionary<int, float> GetRatiosForEMR(PropellantResources propellantResources, float EMR)
@@ -364,11 +423,15 @@ namespace EMRController
 			return ratios;
 		}
 
+		private bool callbacksBound = false;
 		private void BindCallbacks()
 		{
-			string[] editorNames = new string[] { "startingEMR", "finalEMR", "emrSplitPercentage", "fuelReservePercentage" };
-			foreach (var editorName in editorNames) {
-				Fields[editorName].uiControlEditor.onFieldChanged += UIChanged;
+			if (!callbacksBound) {
+				string[] editorNames = new string[] { "startingEMR", "finalEMR", "emrSplitPercentage", "fuelReservePercentage" };
+				foreach (var editorName in editorNames) {
+					Fields[editorName].uiControlEditor.onFieldChanged += UIChanged;
+				}
+				callbacksBound = true;
 			}
 			//EMRUtils.Log("Bound Callbacks");
 		}
@@ -394,6 +457,9 @@ namespace EMRController
 
 		private void UpdateIspAndThrustDisplay()
 		{
+			if (CurrentNodePair.Disabled) {
+				return;
+			}
 			startingEMRText = BuildIspAndThrustString(GenerateMixtureConfigNodeForRatio(startingEMR));
 			finalEMRText = BuildIspAndThrustString(GenerateMixtureConfigNodeForRatio(finalEMR));
 			fuelReserveText = BuildFuelReserveText(fuelReservePercentage);
@@ -401,7 +467,7 @@ namespace EMRController
 
 		private string BuildIspAndThrustString(MixtureConfigNode node)
 		{
-			return node.atmosphereCurve.Evaluate(0) + "s   Thrust: " + MathUtils.ToStringSI(node.thrust, 4, 0, "N");
+			return node.atmosphereCurve.Evaluate(0) + "s   Thrust: " + MathUtils.ToStringSI(node.maxThrust, 4, 0, "N");
 		}
 
 		private string BuildFuelReserveText(float fuelReservePercentage)
@@ -415,41 +481,34 @@ namespace EMRController
 
 		private MixtureConfigNode GenerateMixtureConfigNodeForRatio(float ratio)
 		{
-			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
-			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
-
-			float fullRatioDiff = maxNode.ratio - minNode.ratio;
-			float currentRatioDiff = ratio - minNode.ratio;
+			float fullRatioDiff = CurrentNodePair.Max.ratio - CurrentNodePair.Min.ratio;
+			float currentRatioDiff = ratio - CurrentNodePair.Min.ratio;
 			float ratioPercentage = currentRatioDiff / fullRatioDiff;
 
 			return new MixtureConfigNode() {
+				configName = CurrentNodePair.Min.configName,
 				ratio = ratio,
-				atmosphereCurve = FloatCurveTransformer.GenerateForPercentage(minNode.atmosphereCurve, maxNode.atmosphereCurve, ratioPercentage),
-				thrust = (ratioPercentage * (maxNode.thrust - minNode.thrust)) + minNode.thrust
+				atmosphereCurve = FloatCurveTransformer.GenerateForPercentage(CurrentNodePair.Min.atmosphereCurve, CurrentNodePair.Max.atmosphereCurve, ratioPercentage),
+				maxThrust = (ratioPercentage * (CurrentNodePair.Max.maxThrust - CurrentNodePair.Min.maxThrust)) + CurrentNodePair.Min.maxThrust,
+				minThrust = (ratioPercentage * (CurrentNodePair.Max.minThrust - CurrentNodePair.Min.minThrust)) + CurrentNodePair.Min.minThrust
 			};
 		}
-
 
 		private void SetEditorFields()
 		{
 			//EMRUtils.Log("Setting editor fields");
-			MixtureConfigNode minNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Min()];
-			//EMRUtils.Log("Minimum EMR: ", minNode.ratio);
-			MixtureConfigNode maxNode = mixtureConfigNodes[mixtureConfigNodes.Keys.Max()];
-			//EMRUtils.Log("Maximum EMR: ", maxNode.ratio);
-
 			UI_FloatEdit startFloatEdit = (UI_FloatEdit)Fields["startingEMR"].uiControlEditor;
 			UI_FloatEdit finalFloatEdit = (UI_FloatEdit)Fields["finalEMR"].uiControlEditor;
-			startFloatEdit.minValue = minNode.ratio;
-			startFloatEdit.maxValue = maxNode.ratio;
-			finalFloatEdit.minValue = minNode.ratio;
-			finalFloatEdit.maxValue = maxNode.ratio;
+			startFloatEdit.minValue = CurrentNodePair.Min.ratio;
+			startFloatEdit.maxValue = CurrentNodePair.Max.ratio;
+			finalFloatEdit.minValue = CurrentNodePair.Min.ratio;
+			finalFloatEdit.maxValue = CurrentNodePair.Max.ratio;
 
-			if (startingEMR < minNode.ratio || startingEMR > maxNode.ratio) {
-				startingEMR = maxNode.ratio;
+			if (startingEMR < CurrentNodePair.Min.ratio || startingEMR > CurrentNodePair.Max.ratio) {
+				startingEMR = CurrentNodePair.Max.ratio;
 			}
-			if (finalEMR < minNode.ratio || finalEMR > maxNode.ratio) {
-				finalEMR = minNode.ratio;
+			if (finalEMR < CurrentNodePair.Min.ratio || finalEMR > CurrentNodePair.Max.ratio) {
+				finalEMR = CurrentNodePair.Min.ratio;
 			}
 		}
 
@@ -467,23 +526,29 @@ namespace EMRController
 
 		private void DeserializeNodes()
 		{
-			if (mixtureConfigNodes == null && mixtureConfigNodesSerialized != null) {
+			if (processor == null && mixtureConfigNodesSerialized != null) {
 				//EMRUtils.Log("ConfigNode Deserialization Needed");
-				mixtureConfigNodes = new Dictionary<float, MixtureConfigNode>();
-				List<string> deserialized = ObjectSerializer.Deserialize<List<string>>(mixtureConfigNodesSerialized);
-				foreach (var serializedItem in deserialized) {
-					MixtureConfigNode node = new MixtureConfigNode(serializedItem);
-					//EMRUtils.Log("Deserialized ratio: ", node.ratio, " (", node.atmosphereCurve.Evaluate(0), "/", node.atmosphereCurve.Evaluate(1), ")");
-					mixtureConfigNodes.Add(node.ratio, node);
-				}
-				//EMRUtils.Log("Deserialized ", mixtureConfigNodes.Count, " configs");
-
-				SetEditorFields();
-				SetActionsAndGui();
+				processor = new MixtureConfigNodeProcessor(mixtureConfigNodesSerialized);
 			}
 		}
 		#endregion
 
-	}
+		public void UpdateUsedBy()
+		{
+			//EMRUtils.Log("Update Used By Called");
+			OnStart(StartState.Editor);
+		}
 
+		private void DetectConfig()
+		{
+			currentConfigName = "";
+			foreach (var module in part.Modules) {
+				var moduleType = module.GetType();
+				if (moduleType.FullName == "RealFuels.ModuleEngineConfigs") {
+					currentConfigName = moduleType.GetField("configuration").GetValue(module).ToString();
+					break;
+				}
+			}
+		}
+	}
 }

@@ -1,17 +1,22 @@
-﻿using System;
+﻿using EMRController.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace EMRController
+namespace EMRController.Config
 {
 	[Serializable]
-	class MixtureConfigNode : IConfigNode
+	public class MixtureConfigNode : IConfigNode
 	{
 		private const char DELIM = '|';
 
 		[Persistent]
 		public FloatCurve atmosphereCurve;
+
+		[Persistent]
+		public string configName;
+
 
 		[Persistent]
 		public float ratio; // This is the Oxidizer:Fuel ratio (where the Fuel part is always 1) by mass
@@ -20,7 +25,10 @@ namespace EMRController
 							// the mass flow rate increases, increasing ISP
 
 		[Persistent]
-		public float thrust;
+		public float maxThrust;
+
+		[Persistent]
+		public float minThrust;
 
 		public MixtureConfigNode()
 		{
@@ -29,12 +37,14 @@ namespace EMRController
 
 		public MixtureConfigNode(string serialized)
 		{
-			EMRUtils.Log("Creating MixtureConfigNode from: ", serialized);
+			//EMRUtils.Log("Creating MixtureConfigNode from: ", serialized);
 			var parts = serialized.Split(DELIM);
-			ratio = float.Parse(parts[0]);
-			thrust = float.Parse(parts[1]);
+			configName = parts[0];
+			ratio = float.Parse(parts[1]);
+			minThrust = float.Parse(parts[2]);
+			maxThrust = float.Parse(parts[3]);
 			atmosphereCurve = new FloatCurve();
-			for(int i = 2; i < parts.Length; i += 4) {
+			for (int i = 4; i < parts.Length; i += 4) {
 				atmosphereCurve.Add(
 					float.Parse(parts[i]),
 					float.Parse(parts[i + 1]),
@@ -46,8 +56,20 @@ namespace EMRController
 		public void Load(ConfigNode node)
 		{
 			ConfigNode.LoadObjectFromConfig(this, node);
+			if (node.HasValue("configName")) {
+				configName = node.GetValue("configName");
+			}
+			else {
+				configName = "";
+			}
 			ratio = float.Parse(node.GetValue("ratio"));
-			thrust = float.Parse(node.GetValue("thrust"));
+			if (node.HasNode("minThrust")) {
+				minThrust = float.Parse(node.GetValue("minThrust"));
+			}
+			else {
+				minThrust = 0;
+			}
+			maxThrust = float.Parse(node.GetValue("maxThrust"));
 			atmosphereCurve = new FloatCurve();
 			ConfigNode atmosCurveNode = node.GetNode("atmosphereCurve");
 			if (atmosCurveNode != null) {
@@ -63,9 +85,12 @@ namespace EMRController
 		public override string ToString()
 		{
 			StringBuilder sBuilder = StringBuilderCache.Acquire();
-			sBuilder.Append(ratio).Append(DELIM).Append(thrust).Append(DELIM);
+			sBuilder.Append(configName).Append(DELIM)
+			.Append(ratio).Append(DELIM)
+			.Append(minThrust).Append(DELIM)
+			.Append(maxThrust).Append(DELIM);
 			if (atmosphereCurve != null) {
-				foreach (var key in atmosphereCurve.Curve.keys){
+				foreach (var key in atmosphereCurve.Curve.keys) {
 					sBuilder.Append(key.time).Append(DELIM);
 					sBuilder.Append(key.value).Append(DELIM);
 					sBuilder.Append(key.inTangent).Append(DELIM);
@@ -73,9 +98,9 @@ namespace EMRController
 				}
 			}
 			string resultString = sBuilder.ToStringAndRelease().TrimEnd(DELIM);
-			EMRUtils.Log("Serialized: ", resultString);
+			//EMRUtils.Log("Serialized: ", resultString);
 			return resultString;
 		}
-		
+
 	}
 }
