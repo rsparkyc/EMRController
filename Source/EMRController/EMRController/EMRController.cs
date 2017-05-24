@@ -185,8 +185,7 @@ namespace EMRController
 			float ratioPercentage = currentRatioDiff / fullRatioDiff;
 
 			MixtureConfigNode current = GenerateMixtureConfigNodeForRatio(currentEMR);
-			UpdateThrust(current.maxThrust);
-			engineModule.minThrust = current.minThrust;
+			UpdateThrust(current.maxThrust, current.minThrust);
 			FloatCurve newCurve = FloatCurveTransformer.GenerateForPercentage(CurrentNodePair.Min.atmosphereCurve, CurrentNodePair.Max.atmosphereCurve, ratioPercentage);
 			engineModule.atmosphereCurve = newCurve;
 
@@ -222,6 +221,7 @@ namespace EMRController
 				}
 				catch (Exception ex) {
 					EMRUtils.Log("Error trying to get resource ", prop.Name, " (", ex.Message, ")");
+					EMRUtils.Log("This can be ignored during loading");
 					propAmounts.Add(prop.Id, 0);
 				}
 			}
@@ -494,13 +494,15 @@ namespace EMRController
 			float currentRatioDiff = ratio - CurrentNodePair.Min.ratio;
 			float ratioPercentage = currentRatioDiff / fullRatioDiff;
 
-			return new MixtureConfigNode() {
+			MixtureConfigNode resultNode = new MixtureConfigNode() {
 				configName = CurrentNodePair.Min.configName,
 				ratio = ratio,
 				atmosphereCurve = FloatCurveTransformer.GenerateForPercentage(CurrentNodePair.Min.atmosphereCurve, CurrentNodePair.Max.atmosphereCurve, ratioPercentage),
 				maxThrust = (ratioPercentage * (CurrentNodePair.Max.maxThrust - CurrentNodePair.Min.maxThrust)) + CurrentNodePair.Min.maxThrust,
 				minThrust = (ratioPercentage * (CurrentNodePair.Max.minThrust - CurrentNodePair.Min.minThrust)) + CurrentNodePair.Min.minThrust
 			};
+			//EMRUtils.Log("Resultant node: ", resultNode);
+			return resultNode;
 		}
 
 		private void SetEditorFields()
@@ -569,10 +571,23 @@ namespace EMRController
 		}
 
 		Action<float> ModularEnginesChangeThrust;
-		private void UpdateThrust(float maxThrust)
+		private void UpdateThrust(float maxThrust, float minThrust)
 		{
+			//EMRUtils.Log("Setting min/max: ", minThrust,"/", maxThrust);
 			engineModule.maxThrust = maxThrust;
+			engineModule.minThrust = minThrust;
+
 			if (mecModule != null) {
+
+				// This is doing the same thing that calling ChangeThrust does for setting the maxThrust, but there's no method there to do that
+				List<ConfigNode> mecModuleConfigNodes = (List<ConfigNode>)mecModule.GetType().GetField("configs").GetValue(mecModule);
+				if (mecModuleConfigNodes != null ) {
+					foreach (ConfigNode c in mecModuleConfigNodes) {
+						c.SetValue("minThrust", minThrust.ToString());
+					}
+				}
+
+				// I'm still calling ChangeThrust, since it calls SetConfiguration
 				if (ModularEnginesChangeThrust == null) {
 					ModularEnginesChangeThrust = (Action<float>)Delegate.CreateDelegate(typeof(Action<float>), mecModule, "ChangeThrust");
 				}

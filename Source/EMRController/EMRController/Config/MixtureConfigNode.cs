@@ -63,7 +63,7 @@ namespace EMRController.Config
 				configName = "";
 			}
 			ratio = float.Parse(node.GetValue("ratio"));
-			if (node.HasNode("minThrust")) {
+			if (node.HasValue("minThrust")) {
 				minThrust = float.Parse(node.GetValue("minThrust"));
 			}
 			else {
