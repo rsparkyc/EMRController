@@ -7,6 +7,7 @@ using UnityEngine;
 
 using EMRController.Config;
 using EMRController.Utils;
+using System.Reflection;
 
 namespace EMRController
 {
@@ -146,11 +147,18 @@ namespace EMRController
 			//EMRUtils.Log("Done Binding In Flight Callbacks");
 		}
 
+		private float lastEMR = -1;
 		private void InFlightUIChanged(BaseField baseField, object obj)
 		{
 			if (CurrentNodePair.Disabled) {
 				return;
 			}
+
+			//only going to do all this if emr actually changed
+			if (lastEMR == currentEMR) {
+				return;
+			}
+			lastEMR = currentEMR;
 			//EMRUtils.Log("In Flight UI Changed");
 			UpdateEngineFloatCurve();
 			UpdateEnginePropUsage();
@@ -177,14 +185,15 @@ namespace EMRController
 			float ratioPercentage = currentRatioDiff / fullRatioDiff;
 
 			MixtureConfigNode current = GenerateMixtureConfigNodeForRatio(currentEMR);
-			engineModule.maxThrust = current.maxThrust;
+			UpdateThrust(current.maxThrust);
 			engineModule.minThrust = current.minThrust;
-			//EMRUtils.Log("Setting max thrust to ", current.thrust);
-			//EMRUtils.Log("Fuel flow set to ", engineModule.maxFuelFlow);
 			FloatCurve newCurve = FloatCurveTransformer.GenerateForPercentage(CurrentNodePair.Min.atmosphereCurve, CurrentNodePair.Max.atmosphereCurve, ratioPercentage);
 			engineModule.atmosphereCurve = newCurve;
 
 			engineModule.maxFuelFlow = current.maxThrust / (newCurve.Evaluate(0.0f) * engineModule.g);
+
+			//EMRUtils.Log("Setting max thrust to ", current.maxThrust);
+			//EMRUtils.Log("Fuel flow set to ", engineModule.maxFuelFlow);
 		}
 
 		private void UpdateEnginePropUsage()
@@ -539,15 +548,35 @@ namespace EMRController
 			OnStart(StartState.Editor);
 		}
 
+		PartModule mecModule = null;
 		private void DetectConfig()
 		{
 			currentConfigName = "";
-			foreach (var module in part.Modules) {
-				var moduleType = module.GetType();
-				if (moduleType.FullName == "RealFuels.ModuleEngineConfigs") {
-					currentConfigName = moduleType.GetField("configuration").GetValue(module).ToString();
-					break;
+			if (mecModule == null) {
+				//EMRUtils.Log("Detecting ModuleEngineConfigs");
+				foreach (var module in part.Modules) {
+					if (module.GetType().FullName == "RealFuels.ModuleEngineConfigs") {
+						mecModule = module;
+						//EMRUtils.Log("Found ModuleEngineConfigs");
+						break;
+					}
 				}
+			}
+			if (mecModule != null) {
+				Type moduleType = mecModule.GetType();
+				currentConfigName = moduleType.GetField("configuration").GetValue(mecModule).ToString();
+			}
+		}
+
+		Action<float> ModularEnginesChangeThrust;
+		private void UpdateThrust(float maxThrust)
+		{
+			engineModule.maxThrust = maxThrust;
+			if (mecModule != null) {
+				if (ModularEnginesChangeThrust == null) {
+					ModularEnginesChangeThrust = (Action<float>)Delegate.CreateDelegate(typeof(Action<float>), mecModule, "ChangeThrust");
+				}
+				ModularEnginesChangeThrust(maxThrust);
 			}
 		}
 	}
