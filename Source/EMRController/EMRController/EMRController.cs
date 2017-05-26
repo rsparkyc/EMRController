@@ -82,7 +82,7 @@ namespace EMRController
 			UI_FloatEdit(incrementSmall = 0.1f, incrementLarge = 1.0f, incrementSlide = 0.01f, sigFigs = 2, unit = ":1", scene = UI_Scene.Flight)]
 		public float currentEMR;
 
-		[KSPField(isPersistant = false, guiActive = true, guiActiveEditor = false, guiName = "EMR Ratio")]
+		[KSPField(isPersistant = false, guiActive = true, guiActiveEditor = false, guiName = "EMR")]
 		public string closedLoopEMRText;
 
 		[KSPField(isPersistant = false, guiActive = true, guiActiveEditor = false, guiName = "ISP")]
