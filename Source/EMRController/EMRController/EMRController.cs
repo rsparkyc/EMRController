@@ -97,7 +97,6 @@ namespace EMRController
 
 		private void UpdateInFlightEMRParams()
 		{
-			Events["ChangeEMRMode"].guiName = "Change to " + (emrInClosedLoop ? "Open" : "Closed") + " Loop Mode";
 
 			if (CurrentNodePair.Disabled) {
 				return;
@@ -109,12 +108,12 @@ namespace EMRController
 				//EMRUtils.Log("Best EMR computed to be ", bestEMR, ":1");
 				string bestEMRSuffix = "";
 				if (bestEMR > CurrentNodePair.Max.ratio) {
-					EMRUtils.Log("EMR higher than ", CurrentNodePair.Max.ratio, ":1 (was ", bestEMR, ":1), capping");
+					//EMRUtils.Log("EMR higher than ", CurrentNodePair.Max.ratio, ":1 (was ", bestEMR, ":1), capping");
 					bestEMR = CurrentNodePair.Max.ratio;
 					bestEMRSuffix = " (max)";
 				}
 				else if (bestEMR < CurrentNodePair.Min.ratio) {
-					EMRUtils.Log("EMR lower than ", CurrentNodePair.Min.ratio, ":1 (was ", bestEMR, ":1), capping");
+					//EMRUtils.Log("EMR lower than ", CurrentNodePair.Min.ratio, ":1 (was ", bestEMR, ":1), capping");
 					bestEMR = CurrentNodePair.Min.ratio;
 					bestEMRSuffix = " (min)";
 				}
@@ -154,6 +153,10 @@ namespace EMRController
 				return;
 			}
 
+			UpdateEnginePropUsage();
+			currentReserveText = BuildInFlightFuelReserveText();
+			//EMRUtils.Log("Setting reserve text for EMR ", currentEMR, ":1 to: ", currentReserveText);
+
 			//only going to do all this if emr actually changed
 			if (lastEMR == currentEMR) {
 				return;
@@ -161,7 +164,6 @@ namespace EMRController
 			lastEMR = currentEMR;
 			//EMRUtils.Log("In Flight UI Changed");
 			UpdateEngineFloatCurve();
-			UpdateEnginePropUsage();
 			UpdateInFlightIspAndThrustDisplays();
 		}
 
@@ -169,7 +171,6 @@ namespace EMRController
 		{
 			//EMRUtils.Log("Updating Displays");
 			currentEMRText = BuildIspAndThrustString(GenerateMixtureConfigNodeForRatio(currentEMR));
-			currentReserveText = BuildInFlightFuelReserveText();
 		}
 
 		private void UpdateEngineFloatCurve()
@@ -215,30 +216,42 @@ namespace EMRController
 			foreach (var prop in propResources) {
 				double propVolume;
 				double propMaxVolume;
+				//EMRUtils.Log("About to get In Flight Fuel Reserve Text");
 				try {
+					//EMRUtils.Log("Trying to get resource totals: ", prop.Name);
 					part.GetConnectedResourceTotals(prop.Id, out propVolume, out propMaxVolume);
 					propAmounts.Add(prop.Id, propVolume / prop.Ratio);
+					//EMRUtils.Log("Found for ", prop.Name, ": ", propVolume);
 				}
 				catch (Exception ex) {
-					EMRUtils.Log("Error trying to get resource ", prop.Name, " (", ex.Message, ")");
-					EMRUtils.Log("This can be ignored during loading");
-					propAmounts.Add(prop.Id, 0);
+					//EMRUtils.Log("Error trying to get resource ", prop.Name, " (", ex.Message, ")");
+					return "UNKNOWN";
 				}
 			}
 
 			double minAmount = propAmounts.Min(item => item.Value);
+			//EMRUtils.Log("Min Amount: ", minAmount);
 
 			StringBuilder result = StringBuilderCache.Acquire();
 			foreach (var kvp in propAmounts) {
 				double propDiff = kvp.Value - minAmount;
+				//EMRUtils.Log("Diff from min: ", propDiff);
 				if (propDiff > 0) {
+					//EMRUtils.Log("Diff GT 0");
 					if (result.Length > 0) {
-						result.Append(System.Environment.NewLine);
+						result.Append(Environment.NewLine);
+						//EMRUtils.Log("Adding newline");
 					}
 					PropellantResource propResource = propResources.GetById(kvp.Key);
 					double fuelVolume = propDiff * propResource.Ratio;
-					result.Append(propResource.Name).Append(": ").Append(FormatVolumeAndMass(fuelVolume, propResource.Density));
+					if (fuelVolume * propResource.Density > .001) {
+						result.Append(propResource.Name).Append(": ").Append(FormatVolumeAndMass(fuelVolume, propResource.Density));
+					}
+					//EMRUtils.Log("Text now reads: ", result);
 				}
+			}
+			if (result.Length == 0) {
+				result.Append("None");
 			}
 			return result.ToStringAndRelease();
 		}
@@ -263,6 +276,13 @@ namespace EMRController
 			foreach (var fuel in propResources.Fuels) {
 				part.GetConnectedResourceTotals(fuel.Id, out amount, out maxAmount);
 				remainingFuel += amount;
+			}
+
+			if (remainingOxidizer == 0) {
+				return CurrentNodePair.Min.ratio;
+			}
+			if (remainingFuel == 0) {
+				return CurrentNodePair.Max.ratio;
 			}
 
 			return (float)((remainingOxidizer * propResources.Oxidizer.Density) / (remainingFuel * propResources.AverageFuelDensity));
@@ -316,6 +336,7 @@ namespace EMRController
 		ModuleEngines engineModule = null;
 		public override void OnStart(StartState state)
 		{
+			base.OnStart(state);
 			if (engineModule == null) {
 				engineModule = part.FindModuleImplementing<ModuleEngines>();
 			}
@@ -349,7 +370,6 @@ namespace EMRController
 			if (HighLogic.LoadedSceneIsFlight) {
 				InFlightUIChanged(null, null);
 			}
-			base.OnStart(state);
 		}
 
 		private void ToggleControlsBasedOnConfigs()
@@ -571,6 +591,10 @@ namespace EMRController
 		}
 
 		Action<float> ModularEnginesChangeThrust;
+		float oldMaxThrust = 1;
+		float oldMinThrust = 1;
+
+		private static bool isUpdatingThrust = false;
 		private void UpdateThrust(float maxThrust, float minThrust)
 		{
 			//EMRUtils.Log("Setting min/max: ", minThrust,"/", maxThrust);
@@ -579,20 +603,66 @@ namespace EMRController
 
 			if (mecModule != null) {
 
+				if (maxThrust == oldMaxThrust && minThrust == oldMinThrust) {
+					return;
+				}
+				oldMinThrust = minThrust;
+				oldMaxThrust = maxThrust;
+
 				// This is doing the same thing that calling ChangeThrust does for setting the maxThrust, but there's no method there to do that
 				List<ConfigNode> mecModuleConfigNodes = (List<ConfigNode>)mecModule.GetType().GetField("configs").GetValue(mecModule);
-				if (mecModuleConfigNodes != null ) {
+				if (mecModuleConfigNodes != null) {
 					foreach (ConfigNode c in mecModuleConfigNodes) {
 						c.SetValue("minThrust", minThrust.ToString());
 					}
 				}
 
-				// I'm still calling ChangeThrust, since it calls SetConfiguration
+				// I'm still calling ChangeThrust with the max thrust, since it calls SetConfiguration
 				if (ModularEnginesChangeThrust == null) {
 					ModularEnginesChangeThrust = (Action<float>)Delegate.CreateDelegate(typeof(Action<float>), mecModule, "ChangeThrust");
 				}
-				ModularEnginesChangeThrust(maxThrust);
+
+				//Here we're doing a double check lock, just to be sure that the delegate doesn't get called simultaniously and crash KSP
+				if (!isUpdatingThrust) {
+					lock (this) {
+						if (!isUpdatingThrust) {
+							isUpdatingThrust = true;
+							ModularEnginesChangeThrust(maxThrust);
+							isUpdatingThrust = false;
+						}
+					}
+				}
 			}
+		}
+
+		private int updateInterval = 20;
+		private int currentUpdateCount = 0;
+		public void FixedUpdate()
+		{
+			if (!HighLogic.LoadedSceneIsFlight || !emrEnabled || --currentUpdateCount > 0) {
+				return;
+			}
+
+			currentUpdateCount = updateInterval;
+
+			float optimalEMR = GetOptimalRatioForRemainingFuel();
+			if (optimalEMR > CurrentNodePair.Max.ratio) {
+				optimalEMR = CurrentNodePair.Max.ratio;
+			}
+			if (optimalEMR < CurrentNodePair.Min.ratio) {
+				optimalEMR = CurrentNodePair.Min.ratio;
+			}
+
+			string text = "Change to " + (emrInClosedLoop ? "Open" : "Closed") + " Loop";
+			if (!emrInClosedLoop) {
+				text += " (" + MathUtils.RoundSigFigs(optimalEMR).ToString() + ":1)";
+			}
+			else {
+				UpdateInFlightEMRParams();
+			}
+
+			Events["ChangeEMRMode"].guiName = text;
+			InFlightUIChanged(null, null);
 		}
 	}
 }

@@ -1,4 +1,22 @@
-This is a mod that adjust propellent utilization on engines
+This is a mod that adjust propellent utilization on engines, as was done in 
+real life on the J-2 rocket engine.  
+
+Each configuration for an EMRController module takes 2 MIXTURE configs
+(an upper and lower limit.)  There are some key parameters on a MIXTURE 
+config as follows:
+
+  configName: if using ModuleEngineConfigs, you can specify the config this
+              MIXTURE should be applied to
+
+  ratio:      the oxidizer:fuel ratio that this mixture uses.  
+              Note: this is by mass (and not volume, as is what KSP normally uses)
+
+  maxThrust:  The maximum thrust this engine produces at this ratio
+
+  minThrust:  The minimum thrust this engine produces at this ratio
+              This is optional, and defaults to 0
+
+  atmosphericCurve:  a standard FloatCurve for the ISP at this MIXTURE
 
 A sample MM config:
 
@@ -10,8 +28,10 @@ A sample MM config:
 
 			MIXTURE
 			{
+				configName = something
 				ratio = 1
-				thrust = 200
+				maxThrust = 200
+				minThrust = 0
 
 				atmosphereCurve
 				{
@@ -22,8 +42,10 @@ A sample MM config:
 			}
 			MIXTURE
 			{
+				configName = something
 				ratio = 1.5
-				thrust = 300
+				maxThrust = 300
+				minThrust = 0
 
 				atmosphereCurve
 				{
