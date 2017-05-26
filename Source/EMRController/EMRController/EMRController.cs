@@ -244,12 +244,14 @@ namespace EMRController
 					}
 					PropellantResource propResource = propResources.GetById(kvp.Key);
 					double fuelVolume = propDiff * propResource.Ratio;
-					result.Append(propResource.Name).Append(": ").Append(FormatVolumeAndMass(fuelVolume, propResource.Density));
+					if (fuelVolume * propResource.Density > .001) {
+						result.Append(propResource.Name).Append(": ").Append(FormatVolumeAndMass(fuelVolume, propResource.Density));
+					}
 					//EMRUtils.Log("Text now reads: ", result);
 				}
-				if (result.Length == 0) {
-					result.Append("None");
-				}
+			}
+			if (result.Length == 0) {
+				result.Append("None");
 			}
 			return result.ToStringAndRelease();
 		}
@@ -591,6 +593,8 @@ namespace EMRController
 		Action<float> ModularEnginesChangeThrust;
 		float oldMaxThrust = 1;
 		float oldMinThrust = 1;
+
+		private static bool isUpdatingThrust = false;
 		private void UpdateThrust(float maxThrust, float minThrust)
 		{
 			//EMRUtils.Log("Setting min/max: ", minThrust,"/", maxThrust);
@@ -606,31 +610,30 @@ namespace EMRController
 				oldMaxThrust = maxThrust;
 
 				// This is doing the same thing that calling ChangeThrust does for setting the maxThrust, but there's no method there to do that
-				EMRUtils.Log("About to use reflection to get configs");
 				List<ConfigNode> mecModuleConfigNodes = (List<ConfigNode>)mecModule.GetType().GetField("configs").GetValue(mecModule);
-				EMRUtils.Log("Got configs");
 				if (mecModuleConfigNodes != null) {
 					foreach (ConfigNode c in mecModuleConfigNodes) {
 						c.SetValue("minThrust", minThrust.ToString());
 					}
 				}
 
-				// I'm still calling ChangeThrust, since it calls SetConfiguration
+				// I'm still calling ChangeThrust with the max thrust, since it calls SetConfiguration
 				if (ModularEnginesChangeThrust == null) {
 					ModularEnginesChangeThrust = (Action<float>)Delegate.CreateDelegate(typeof(Action<float>), mecModule, "ChangeThrust");
 				}
-				EMRUtils.Log("Would normally use reflection here");
 
-				//The followig crashes
-				//ModularEnginesChangeThrust(maxThrust);
-
-				//This crashes too
-				//mecModule.SendMessage("ChangeThrust", maxThrust);
-
-				EMRUtils.Log("but didn't");
+				//Here we're doing a double check lock, just to be sure that the delegate doesn't get called simultaniously and crash KSP
+				if (!isUpdatingThrust) {
+					lock (this) {
+						if (!isUpdatingThrust) {
+							isUpdatingThrust = true;
+							ModularEnginesChangeThrust(maxThrust);
+							isUpdatingThrust = false;
+						}
+					}
+				}
 			}
 		}
-
 
 		private int updateInterval = 20;
 		private int currentUpdateCount = 0;

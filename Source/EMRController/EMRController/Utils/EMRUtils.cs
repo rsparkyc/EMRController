@@ -16,8 +16,8 @@ namespace EMRController.Utils
 		public static void Log(params string[] message)
 		{
 			var builder = StringBuilderCache.Acquire();
-			builder.Append("[").Append(logName).Append(" - ");
-			builder.Append(DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff")).Append("] ");
+			builder.Append("[").Append(logName).Append("] ");
+			builder.Append(DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff")).Append(" - ");
 			foreach (string part in message) {
 				builder.Append(part);
 			}
