@@ -30,7 +30,7 @@ of options to configure:
 
 `Boiloff Reserve Percentage`: If you're using a mod that simulates propellent boiloff, 
 this slider allows us to add up to 50% more fuel or oxidizer, whichever you want to have more of.
-Drag right for fuel (the more common choice), or right for oxidizer.
+Drag right for fuel (the more common choice), or left for oxidizer.
 
 Now when you add your fuel (assuming you're using RealFuels), the fuel tank should properly select the
 right mixture for you.
