@@ -8,6 +8,7 @@ namespace EMRController.Utils
 	static class EMRUtils
 	{
 		private const string logName = "EMR";
+		private static bool enabled = false;
 		public static void Log(params object[] message)
 		{
 			Log(Array.ConvertAll(message, item => item.ToString()));
@@ -21,7 +22,9 @@ namespace EMRController.Utils
 			foreach (string part in message) {
 				builder.Append(part);
 			}
-			UnityEngine.Debug.Log(builder.ToStringAndRelease());
+			if (enabled) { 
+				UnityEngine.Debug.Log(builder.ToStringAndRelease());
+			}
 		}
 	}
 }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EMRController.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -23,6 +24,7 @@ namespace EMRController.Config
 			Max = max;
 
 			if (min == null || max == null) {
+				EMRUtils.Log("One or both of the MixtureConfigNodes were null, disabling");
 				Disabled = true;
 			}
 		}

@@ -50,6 +50,8 @@ namespace EMRController.Config
 				allNodes.Add(name, pair);
 			}
 
+			EMRUtils.Log("Added " + allNodes.Count + " config nodes");
+
 			List<String> configList = nodes.Select(item => item.ToString()).ToList();
 			Serialized = ObjectSerializer.Serialize(configList);
 		}

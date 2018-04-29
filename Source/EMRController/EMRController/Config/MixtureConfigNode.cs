@@ -37,7 +37,7 @@ namespace EMRController.Config
 
 		public MixtureConfigNode(string serialized)
 		{
-			//EMRUtils.Log("Creating MixtureConfigNode from: ", serialized);
+			EMRUtils.Log("Creating MixtureConfigNode from: ", serialized);
 			var parts = serialized.Split(DELIM);
 			configName = parts[0];
 			ratio = float.Parse(parts[1]);
@@ -98,7 +98,7 @@ namespace EMRController.Config
 				}
 			}
 			string resultString = sBuilder.ToStringAndRelease().TrimEnd(DELIM);
-			//EMRUtils.Log("Serialized: ", resultString);
+			EMRUtils.Log("Serialized: ", resultString);
 			return resultString;
 		}
 

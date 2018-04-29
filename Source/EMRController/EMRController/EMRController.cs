@@ -41,11 +41,11 @@ namespace EMRController
 
 		public override void OnLoad(ConfigNode node)
 		{
-			//EMRUtils.Log("OnLoad called");
+			EMRUtils.Log("OnLoad called");
 			if (GameSceneFilter.AnyInitializing.IsLoaded()) {
-				//EMRUtils.Log("Loading");
+				EMRUtils.Log("Loading");
 				LoadMixtureConfigNodes(node);
-				//EMRUtils.Log("Loaded");
+				EMRUtils.Log("Loaded");
 			}
 			base.OnLoad(node);
 		}
@@ -349,6 +349,7 @@ namespace EMRController
 				propellantResources = new PropellantResources(engineModule);
 			}
 
+			EMRUtils.Log("Detecting configs");
 			DetectConfig();
 			DeserializeNodes();
 			BindCallbacks();
@@ -374,8 +375,10 @@ namespace EMRController
 
 		private void ToggleControlsBasedOnConfigs()
 		{
+			EMRUtils.Log("Toggling Controls based on configs");
 			if (CurrentNodePair.Disabled) {
 				emrEnabled = false;
+				EMRUtils.Log("Current node pair is disabled, disabling EMR");
 			}
 
 			Events["ToggleEMR"].guiActive = !CurrentNodePair.Disabled;
@@ -527,7 +530,7 @@ namespace EMRController
 
 		private void SetEditorFields()
 		{
-			//EMRUtils.Log("Setting editor fields");
+			EMRUtils.Log("Setting editor fields");
 			UI_FloatEdit startFloatEdit = (UI_FloatEdit)Fields["startingEMR"].uiControlEditor;
 			UI_FloatEdit finalFloatEdit = (UI_FloatEdit)Fields["finalEMR"].uiControlEditor;
 			startFloatEdit.minValue = CurrentNodePair.Min.ratio;
@@ -575,11 +578,11 @@ namespace EMRController
 		{
 			currentConfigName = "";
 			if (mecModule == null) {
-				//EMRUtils.Log("Detecting ModuleEngineConfigs");
+				EMRUtils.Log("Detecting ModuleEngineConfigs");
 				foreach (var module in part.Modules) {
 					if (module.GetType().FullName == "RealFuels.ModuleEngineConfigs") {
 						mecModule = module;
-						//EMRUtils.Log("Found ModuleEngineConfigs");
+						EMRUtils.Log("Found ModuleEngineConfigs");
 						break;
 					}
 				}
