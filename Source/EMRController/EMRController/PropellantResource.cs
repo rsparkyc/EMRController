@@ -35,7 +35,7 @@ namespace EMRController
 		public float PropellantMassFlow {
 			get {
 				float pmf = Density * Ratio;
-				//EMRUtils.Log("Calculating PropMassFlow for ", Name, " as ", Density, "*", Ratio, "=", pmf);
+				EMRUtils.Log("Calculating PropMassFlow for ", Name, " as ", Density, "*", Ratio, "=", pmf);
 				return pmf;
 			}
 		}

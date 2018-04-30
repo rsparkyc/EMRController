@@ -1,4 +1,5 @@
 ﻿//Taken from ProceduralParts
+using EMRController.Utils;
 using System;
 using UnityEngine;
 
@@ -69,7 +70,9 @@ namespace KSPAPIExtensions
 		/// <returns></returns>
 		public static string ToStringSI(this float value, int sigFigs = 3, int exponent = 0, string unit = null)
 		{
+			EMRUtils.Log("Getting prefix for exponent of " + exponent);
 			SIPrefix prefix = value.GetSIPrefix(exponent);
+			EMRUtils.Log("Found prefix of " + prefix);
 			return prefix.FormatSI(value, sigFigs, exponent, unit);
 		}
 

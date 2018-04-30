@@ -103,17 +103,17 @@ namespace EMRController
 			}
 
 			if (emrInClosedLoop) {
-				//EMRUtils.Log("Closed Loop Detected");
+				EMRUtils.Log("Closed Loop Detected");
 				float bestEMR = GetOptimalRatioForRemainingFuel();
-				//EMRUtils.Log("Best EMR computed to be ", bestEMR, ":1");
+				EMRUtils.Log("Best EMR computed to be ", bestEMR, ":1");
 				string bestEMRSuffix = "";
 				if (bestEMR > CurrentNodePair.Max.ratio) {
-					//EMRUtils.Log("EMR higher than ", CurrentNodePair.Max.ratio, ":1 (was ", bestEMR, ":1), capping");
+					EMRUtils.Log("EMR higher than ", CurrentNodePair.Max.ratio, ":1 (was ", bestEMR, ":1), capping");
 					bestEMR = CurrentNodePair.Max.ratio;
 					bestEMRSuffix = " (max)";
 				}
 				else if (bestEMR < CurrentNodePair.Min.ratio) {
-					//EMRUtils.Log("EMR lower than ", CurrentNodePair.Min.ratio, ":1 (was ", bestEMR, ":1), capping");
+					EMRUtils.Log("EMR lower than ", CurrentNodePair.Min.ratio, ":1 (was ", bestEMR, ":1), capping");
 					bestEMR = CurrentNodePair.Min.ratio;
 					bestEMRSuffix = " (min)";
 				}
@@ -265,9 +265,19 @@ namespace EMRController
 		private float GetOptimalRatioForRemainingFuel()
 		{
 			PropellantResources propResources = new PropellantResources(engineModule);
+			if (propResources == null) {
+				EMRUtils.Log("Could not find any connected resources");
+				return CurrentNodePair.Min.ratio;
+			}
 
 			double amount;
 			double maxAmount;
+			EMRUtils.Log("Getting resources totals from part");
+
+			if (part == null) {
+				//DELETE ME
+				EMRUtils.Log("I don't know how, but part is null");
+			}
 			part.GetConnectedResourceTotals(propResources.Oxidizer.Id, out amount, out maxAmount);
 
 			double remainingOxidizer = amount;
@@ -277,6 +287,8 @@ namespace EMRController
 				part.GetConnectedResourceTotals(fuel.Id, out amount, out maxAmount);
 				remainingFuel += amount;
 			}
+
+			EMRUtils.Log("Remaining Fuel: " + remainingFuel + ", Remaining Oxidier: " + remainingOxidizer);
 
 			if (remainingOxidizer == 0) {
 				return CurrentNodePair.Min.ratio;

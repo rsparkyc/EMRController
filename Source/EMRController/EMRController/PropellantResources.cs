@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EMRController.Utils;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,21 +14,31 @@ namespace EMRController
 		public PropellantResource Oxidizer {
 			get {
 				if (_oxidizer == null) {
-					//EMRUtils.Log("Oxidizer detection needed");
-					// I tried doing the following, but was getting exceptions throw
+					EMRUtils.Log("Oxidizer detection needed");
+					// I tried doing the following, but was getting exceptions thrown
 					//_oxidizer = this.MaxAt(prop => prop.PropellantMassFlow);
 
+					EMRUtils.Log("Looking at " + this.Count + " different propellants");
+					foreach (var prop in this) {
+						EMRUtils.Log(prop.Name + " MassFlowRate: " + prop.PropellantMassFlow);
+						if (prop.Name == "Oxidizer") {
+							EMRUtils.Log("Found \"Oxidizer\", so let's use it.");
+							_oxidizer = prop;
+						}
+					}
+				}
+				if (_oxidizer == null) { 
 					//Instead, I'll just find the max and do a find on use that.
 					var maxMassFlow = this.Max(prop => prop.PropellantMassFlow);
 					var oxidizerCandidates = this.FindAll(prop => prop.PropellantMassFlow == maxMassFlow);
 					if (oxidizerCandidates.Count == 1) {
 						_oxidizer = oxidizerCandidates[0];
-						//EMRUtils.Log("Oxidizer detected as ", _oxidizer.Name, " (with a mass flow of ", _oxidizer.PropellantMassFlow, ")");
+						EMRUtils.Log("Oxidizer detected as ", _oxidizer.Name, " (with a mass flow of ", _oxidizer.PropellantMassFlow, ")");
 					}
 					else {
 						//Multiple candidates found, looking for this first one with "ox" in the name
 						_oxidizer = oxidizerCandidates.Find(prop => prop.Name.ToLower().Contains("ox"));
-						//EMRUtils.Log("Multiple Oxidizer candidates found, using ", _oxidizer.Name);
+						EMRUtils.Log("Multiple Oxidizer candidates found, using ", _oxidizer.Name);
 					}
 				}
 				return _oxidizer;
@@ -54,7 +65,15 @@ namespace EMRController
 
 		public double AverageFuelDensity {
 			get {
-				return Fuels.Sum(fuel => fuel.Ratio * fuel.Density) / (RatioTotals - Oxidizer.Ratio);
+				foreach (PropellantResource fuel in Fuels) {
+					EMRUtils.Log("Fuel: " + fuel.Name + "/" + fuel.Id + ", Ratio: " + fuel.Ratio + ", Density: " + fuel.Density);
+				}
+
+				float sumOfFuelsTimesDensity = Fuels.Sum(fuel => fuel.Ratio * fuel.Density);
+				EMRUtils.Log("Sum of fuels * density: ", sumOfFuelsTimesDensity);
+				EMRUtils.Log("RatioTotals: ", RatioTotals);
+				EMRUtils.Log("OxidizerRatio: ", Oxidizer.Ratio);
+				return sumOfFuelsTimesDensity / (RatioTotals - Oxidizer.Ratio);
 			}
 		}
 
